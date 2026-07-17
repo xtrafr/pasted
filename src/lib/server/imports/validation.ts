@@ -111,7 +111,7 @@ const candidateTitleSchema = z
 export const updateImportReviewSchema = z
 	.object({
 		selectedCandidateKeys: candidateKeysSchema.optional(),
-		candidateTitles: z.array(candidateTitleSchema).max(1_000).optional(),
+		candidateTitles: z.array(candidateTitleSchema).max(MAX_IMPORT_CANDIDATES).optional(),
 		collectionId: uuidSchema.nullable().optional(),
 		tagIds: tagIdsSchema.optional(),
 		sourceType: genericSourceTypeSchema.optional()

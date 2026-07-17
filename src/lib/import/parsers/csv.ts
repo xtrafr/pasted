@@ -120,6 +120,26 @@ function hasHeader(row: string[] | undefined): boolean {
 	);
 }
 
+export interface CsvColumn {
+	index: number;
+	label: string;
+}
+
+export function inspectCsvColumns(
+	content: string,
+	filename: string | undefined,
+	context: ParserContext
+): CsvColumn[] {
+	const delimiter = detectCsvDelimiter(content, filename);
+	const rows = parseRows(content, delimiter, context);
+	const first = rows[0] ?? [];
+	const headerPresent = hasHeader(first);
+	return first.map((cell, index) => ({
+		index,
+		label: headerPresent && cell.trim() ? cell.trim().slice(0, 120) : `Column ${index + 1}`
+	}));
+}
+
 export const csvParser: ImportParser = {
 	format: 'csv',
 	parse(input, context): RawParserResult {
@@ -130,11 +150,13 @@ export const csvParser: ImportParser = {
 		const titleIndex = headers?.findIndex((header) => /^(?:label|name|title)$/i.test(header));
 		const candidates: RawParserResult['candidates'] = [];
 		let ignoredCount = 0;
+		const selectedColumns = context.csvColumns ? new Set(context.csvColumns) : null;
 
 		for (let rowIndex = headerPresent ? 1 : 0; rowIndex < rows.length; rowIndex += 1) {
 			const row = rows[rowIndex] ?? [];
 			let linksInRow = 0;
 			for (let columnIndex = 0; columnIndex < row.length; columnIndex += 1) {
+				if (selectedColumns && !selectedColumns.has(columnIndex)) continue;
 				const cell = row[columnIndex] ?? '';
 				if (!cell) continue;
 				const column = headers?.[columnIndex] || `column ${columnIndex + 1}`;

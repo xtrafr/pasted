@@ -22,6 +22,7 @@ export interface ImportLimits {
 
 export interface ParserContext {
 	limits: ImportLimits;
+	csvColumns?: readonly number[];
 }
 
 export interface RawImportCandidate {
@@ -117,6 +118,7 @@ export interface ParseImportOptions {
 	limits?: Partial<ImportLimits>;
 	existingNormalizedUrls?: Iterable<string>;
 	removeTrackingParameters?: boolean;
+	csvColumns?: readonly number[];
 }
 
 export interface ExtractedUrl {

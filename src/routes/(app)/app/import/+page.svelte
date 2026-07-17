@@ -12,8 +12,14 @@
 	import Progress from '$lib/components/ui/Progress.svelte';
 	import Textarea from '$lib/components/ui/Textarea.svelte';
 	import { parsePastedBackupJson, parsePastedBackupZip, type PastedBackupV1 } from '$lib/export';
-	import { parseImport } from '$lib/import';
+	import {
+		detectImportFormat,
+		inspectCsvColumns,
+		parseImport,
+		resolveImportLimits
+	} from '$lib/import';
 	import type {
+		CsvColumn,
 		ImportCandidate,
 		ImportFormat,
 		ImportInput,
@@ -57,6 +63,7 @@
 	let analysisError = $state('');
 	let result = $state<ImportResult>();
 	let backup = $state.raw<PastedBackupV1>();
+	let csvColumns = $state.raw<CsvColumn[]>([]);
 	let restoringBackup = $state(false);
 	let search = $state('');
 	let domain = $state('');
@@ -76,6 +83,7 @@
 	let idempotencyKey = $state('');
 
 	const selected = new SvelteSet<string>();
+	const selectedCsvColumns = new SvelteSet<number>();
 	const selectedTags = new SvelteSet<string>();
 	const titles = new SvelteMap<string, string>();
 	let createdCollections = $state<LibraryCollection[]>([]);
@@ -202,13 +210,32 @@
 			if (/"format"\s*:\s*"pasted-backup"/i.test(content)) {
 				backup = parsePastedBackupJson(content);
 			} else backup = undefined;
-			const parsed = await parseInWorker(
-				{ content, filename, mimeType },
-				{
-					...(formatOverride ? { format: formatOverride } : {}),
-					removeTrackingParameters: removeTracking
+			const importInput = { content, filename, mimeType };
+			const detected = detectImportFormat(importInput, formatOverride || undefined);
+			if (detected.format === 'csv') {
+				const inspectedColumns = inspectCsvColumns(content, filename, {
+					limits: resolveImportLimits()
+				});
+				const columnsChanged =
+					inspectedColumns.length !== csvColumns.length ||
+					inspectedColumns.some((column, index) => column.label !== csvColumns[index]?.label);
+				if (columnsChanged) {
+					selectedCsvColumns.clear();
+					for (const column of inspectedColumns) selectedCsvColumns.add(column.index);
 				}
-			);
+				csvColumns = inspectedColumns;
+				if (csvColumns.length > 0 && selectedCsvColumns.size === 0) {
+					throw new Error('Choose at least one CSV column to scan.');
+				}
+			} else {
+				csvColumns = [];
+				selectedCsvColumns.clear();
+			}
+			const parsed = await parseInWorker(importInput, {
+				...(formatOverride ? { format: formatOverride } : {}),
+				removeTrackingParameters: removeTracking,
+				...(detected.format === 'csv' ? { csvColumns: [...selectedCsvColumns] } : {})
+			});
 			result = parsed;
 			formatOverride = parsed.format;
 			initializeReview(parsed);
@@ -243,6 +270,19 @@
 	function setTitle(id: string, title: string) {
 		if (title) titles.set(id, title);
 		else titles.delete(id);
+	}
+
+	function toggleCsvColumn(index: number) {
+		if (selectedCsvColumns.has(index)) selectedCsvColumns.delete(index);
+		else selectedCsvColumns.add(index);
+	}
+
+	function selectAllCsvColumns() {
+		for (const column of csvColumns) selectedCsvColumns.add(column.index);
+	}
+
+	function clearCsvColumns() {
+		selectedCsvColumns.clear();
 	}
 
 	function selectWhere(predicate: (candidate: ImportCandidate) => boolean) {
@@ -393,7 +433,7 @@
 		const selectedCandidateKeys = [...selected].filter((key) => knownKeys.has(key));
 		const candidateTitles = [...titles]
 			.filter(([candidateKey]) => knownKeys.has(candidateKey))
-			.slice(0, 1_000)
+			.slice(0, 10_000)
 			.map(([candidateKey, title]) => ({ candidateKey, title: title || null }));
 		snapshot = await apiRequest(resolve('/api/v1/imports/[id]', { id: importSessionId }), 'PATCH', {
 			selectedCandidateKeys,
@@ -541,6 +581,8 @@
 		content = '';
 		files = [];
 		selected.clear();
+		selectedCsvColumns.clear();
+		csvColumns = [];
 		titles.clear();
 		importError = '';
 		importMessage = '';
@@ -675,6 +717,32 @@
 						{#each result.warnings as warning (warning.code)}<li>{warning.message}</li>{/each}
 					</ul>
 				{/if}
+				{#if result.format === 'csv' && csvColumns.length}
+					<fieldset class="csv-columns">
+						<div class="csv-columns-head">
+							<div>
+								<legend>CSV columns to scan</legend>
+								<p>Choose the columns that may contain links, then analyze again.</p>
+							</div>
+							<div>
+								<button type="button" onclick={selectAllCsvColumns}>Select all</button>
+								<button type="button" onclick={clearCsvColumns}>Clear</button>
+							</div>
+						</div>
+						<div class="csv-column-options">
+							{#each csvColumns as column (column.index)}
+								<label>
+									<input
+										type="checkbox"
+										checked={selectedCsvColumns.has(column.index)}
+										onchange={() => toggleCsvColumn(column.index)}
+									/>
+									<span>{column.label}</span>
+								</label>
+							{/each}
+						</div>
+					</fieldset>
+				{/if}
 				<div class="detected-actions">
 					<label
 						>Detected format
@@ -734,7 +802,7 @@
 			{/if}
 
 			<div class="review-layout">
-				<div class="results-list" aria-live="polite">
+				<div class="results-list" role="list" aria-label="Detected links" aria-live="polite">
 					{#each shownCandidates as candidate (candidate.id)}
 						<ImportResultRow
 							{candidate}
@@ -1052,6 +1120,63 @@
 		padding: 1rem 2rem;
 		background: var(--surface-subtle);
 		text-align: left;
+	}
+	.csv-columns {
+		display: grid;
+		gap: 1rem;
+		margin: 0;
+		border: var(--border-hairline) solid var(--border-default);
+		border-radius: var(--radius-card);
+		padding: 1rem;
+		text-align: left;
+	}
+	.csv-columns legend {
+		font-weight: var(--font-weight-medium);
+	}
+	.csv-columns p {
+		margin: 0.25rem 0 0;
+		color: var(--text-muted);
+		font-size: var(--text-caption);
+	}
+	.csv-columns-head {
+		display: flex;
+		align-items: start;
+		justify-content: space-between;
+		gap: 1rem;
+	}
+	.csv-columns-head > div:last-child {
+		display: flex;
+		gap: 0.75rem;
+	}
+	.csv-columns-head button {
+		border: 0;
+		background: transparent;
+		color: var(--text-accent);
+		font: inherit;
+		font-size: var(--text-caption);
+		font-weight: var(--font-weight-medium);
+		cursor: pointer;
+	}
+	.csv-column-options {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+		gap: 0.625rem;
+	}
+	.csv-column-options label {
+		display: flex;
+		align-items: center;
+		gap: 0.625rem;
+		min-width: 0;
+		border-radius: var(--radius-control);
+		background: var(--surface-subtle);
+		padding: 0.75rem;
+		font-size: var(--text-body-small);
+		cursor: pointer;
+	}
+	.csv-column-options span {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 	.detected-actions {
 		display: grid;

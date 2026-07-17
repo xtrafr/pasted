@@ -30,7 +30,7 @@
 	);
 </script>
 
-<article class:selected class:blocked class="result-row">
+<article role="listitem" class:selected class:blocked class="result-row">
 	<label class="row-check">
 		<input
 			type="checkbox"

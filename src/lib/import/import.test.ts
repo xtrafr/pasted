@@ -7,6 +7,7 @@ import {
 	detectImportFormat,
 	detectSecrets,
 	extractUrls,
+	inspectCsvColumns,
 	maskSecrets,
 	normalizeUrl,
 	parseImport,
@@ -238,6 +239,23 @@ describe('format parsers', () => {
 		]);
 		expect(result.candidates.every((candidate) => candidate.title === 'One, saved')).toBe(true);
 		expect(result.summary.ignored).toBe(1);
+	});
+
+	it('inspects CSV headers and scans only the selected columns', () => {
+		const content = 'url,notes\nhttps://primary.example/path,https://secondary.example/note';
+		const columns = inspectCsvColumns(content, 'links.csv', { limits: DEFAULT_IMPORT_LIMITS });
+		const result = parseImport(
+			{ filename: 'links.csv', content },
+			{ format: 'csv', csvColumns: [0] }
+		);
+
+		expect(columns).toEqual([
+			{ index: 0, label: 'url' },
+			{ index: 1, label: 'notes' }
+		]);
+		expect(result.candidates.map((candidate) => candidate.normalizedUrl)).toEqual([
+			'https://primary.example/path'
+		]);
 	});
 
 	it('parses Markdown links, autolinks, reference definitions and raw URLs once', () => {

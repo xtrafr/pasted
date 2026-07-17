@@ -32,7 +32,10 @@ export function parseImport(input: ImportInput, options: ParseImportOptions = {}
 	assertInputSize(input.content, limits);
 	const detection = detectImportFormat(input, options.format);
 	const parser = getImportParser(detection.format);
-	const rawResult = parser.parse(input, { limits });
+	const rawResult = parser.parse(input, {
+		limits,
+		...(options.csvColumns ? { csvColumns: [...new Set(options.csvColumns)] } : {})
+	});
 	const removeTracking = options.removeTrackingParameters ?? true;
 
 	const existing = new Set<string>();
