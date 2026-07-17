@@ -1,13 +1,13 @@
 <script lang="ts">
 	/* eslint-disable svelte/no-navigation-without-resolve */
+	import { invalidateAll } from '$app/navigation';
 	import { navigating } from '$app/state';
 	import { resolve } from '$app/paths';
-	import { SvelteSet } from 'svelte/reactivity';
+	import { SvelteSet, SvelteURLSearchParams } from 'svelte/reactivity';
 	import AppIcon from '$lib/components/app/AppIcon.svelte';
-	import CommandPalette from '$lib/components/app/CommandPalette.svelte';
 	import ItemCard from '$lib/components/app/ItemCard.svelte';
 	import LibrarySidebar from '$lib/components/app/LibrarySidebar.svelte';
-	import QuickAdd from '$lib/components/app/QuickAdd.svelte';
+	import ReminderAlerts from '$lib/components/app/ReminderAlerts.svelte';
 	import type { LibraryCollection, LibraryItem, LibraryTag } from '$lib/components/app/types';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Dialog from '$lib/components/ui/Dialog.svelte';
@@ -18,43 +18,72 @@
 	import type { ActionData, PageData } from './$types';
 
 	let { data, form }: { data: PageData; form: ActionData } = $props();
-	let quickAddOpen = $state(false);
-	let commandOpen = $state(false);
 	let sidebarOpen = $state(false);
 	let collectionOpen = $state(false);
 	let tagOpen = $state(false);
 	let toastOpen = $state(false);
+	let clientToastMessage = $state('');
+	let clientToastTone = $state<'success' | 'warning'>('success');
 	let viewMode = $state<'grid' | 'list'>('grid');
+	let bulkAction = $state('');
+	let recentSearches = $state.raw<string[]>([]);
 	const selected = new SvelteSet<string>();
 	let searchForm: HTMLFormElement;
 	let searchTimer: ReturnType<typeof setTimeout> | undefined;
-	let shortcutPrefix = '';
-	let shortcutTimer: ReturnType<typeof setTimeout> | undefined;
 	const skeletonSlots = [0, 1, 2, 3, 4, 5];
 
 	const items = $derived(data.library.items as LibraryItem[]);
 	const collections = $derived(data.collections as LibraryCollection[]);
 	const tags = $derived(data.tags as LibraryTag[]);
 	const allSelected = $derived(items.length > 0 && selected.size === items.length);
+	const dueReminders = $derived(data.dueReminders as LibraryItem[]);
+	const activeFilterCount = $derived(
+		[
+			data.filters.query,
+			data.filters.sourceImport,
+			data.filters.domain,
+			data.filters.createdFrom,
+			data.filters.createdTo,
+			data.filters.type,
+			data.filters.collection,
+			...data.filters.tagIds
+		].filter(Boolean).length
+	);
 	const viewTitle = $derived(
-		data.filters.collection
-			? data.filters.collection === 'unorganized'
-				? 'Unorganized'
-				: (collections.find((entry) => entry.id === data.filters.collection)?.name ?? 'Collection')
-			: data.filters.view === 'favorites'
-				? 'Favorites'
-				: data.filters.view === 'reminders'
-					? 'Reminders'
-					: data.filters.view === 'archived'
-						? 'Archive'
-						: 'Everything'
+		data.filters.sourceImport
+			? 'Imported items'
+			: data.filters.collection
+				? data.filters.collection === 'unorganized'
+					? 'Unorganized'
+					: (collections.find((entry) => entry.id === data.filters.collection)?.name ??
+						'Collection')
+				: data.filters.view === 'favorites'
+					? 'Favorites'
+					: data.filters.view === 'reminders'
+						? 'Reminders'
+						: data.filters.view === 'archived'
+							? 'Archive'
+							: 'Everything'
 	);
 	const actionMessage = $derived(
-		form?.success
-			? form.kind === 'bulk'
-				? `${form.affected} items updated.`
-				: `${form.kind[0]?.toUpperCase()}${form.kind.slice(1)} saved.`
-			: (form?.message ?? 'The operation could not be completed.')
+		clientToastMessage ||
+			(form?.success
+				? form.kind === 'bulk'
+					? `${form.affected} items updated.`
+					: `${form.kind[0]?.toUpperCase()}${form.kind.slice(1)} saved.`
+				: (form?.message ?? 'The operation could not be completed.'))
+	);
+	const toastTone = $derived(
+		clientToastMessage ? clientToastTone : form?.success ? 'success' : 'warning'
+	);
+	const toastTitle = $derived(
+		clientToastMessage
+			? clientToastTone === 'success'
+				? 'Done'
+				: 'Could not update'
+			: form?.success
+				? 'Done'
+				: 'Could not save'
 	);
 
 	$effect(() => {
@@ -63,7 +92,41 @@
 	});
 
 	$effect(() => {
+		try {
+			const stored = JSON.parse(localStorage.getItem('pasted-search-history-v1') ?? '[]');
+			recentSearches = Array.isArray(stored)
+				? stored.filter((value): value is string => typeof value === 'string').slice(0, 6)
+				: [];
+		} catch {
+			recentSearches = [];
+		}
+	});
+
+	$effect(() => {
+		const query = data.filters.query.trim();
+		if (!query) return;
+		try {
+			const stored = JSON.parse(localStorage.getItem('pasted-search-history-v1') ?? '[]');
+			const history = Array.isArray(stored)
+				? stored.filter((value): value is string => typeof value === 'string')
+				: [];
+			const next = [query, ...history.filter((value) => value !== query)].slice(0, 6);
+			localStorage.setItem('pasted-search-history-v1', JSON.stringify(next));
+			recentSearches = next;
+		} catch {
+			// Search still works when browser storage is unavailable.
+		}
+	});
+
+	$effect(() => {
 		if (form) toastOpen = true;
+	});
+
+	$effect(() => {
+		const itemIds = new Set(items.map((item) => item.id));
+		for (const itemId of selected) {
+			if (!itemIds.has(itemId)) selected.delete(itemId);
+		}
 	});
 
 	function setViewMode(mode: 'grid' | 'list') {
@@ -94,63 +157,74 @@
 		}
 	}
 
-	async function enableNotifications() {
-		if (!('Notification' in window)) return;
-		await Notification.requestPermission();
+	async function handleItemAction(
+		message: string,
+		refresh = false,
+		tone: 'success' | 'warning' = 'success'
+	) {
+		clientToastMessage = message;
+		clientToastTone = tone;
+		toastOpen = true;
+		if (refresh) await invalidateAll();
 	}
 
-	function isTyping(target: EventTarget | null) {
-		return (
-			target instanceof HTMLInputElement ||
-			target instanceof HTMLTextAreaElement ||
-			target instanceof HTMLSelectElement
-		);
+	function openGlobalQuickAdd() {
+		document.querySelector<HTMLButtonElement>('#global-quick-add')?.click();
 	}
 
-	function handleShortcut(event: KeyboardEvent) {
-		if (event.key === 'Escape') {
-			selected.clear();
-			return;
+	function currentFilterParams(): SvelteURLSearchParams {
+		const params = new SvelteURLSearchParams();
+		if (data.filters.view && data.filters.view !== 'all') params.set('view', data.filters.view);
+		if (data.filters.query) params.set('q', data.filters.query);
+		if (data.filters.sourceImport) params.set('sourceImport', data.filters.sourceImport);
+		if (data.filters.domain) params.set('domain', data.filters.domain);
+		if (data.filters.createdFrom) params.set('createdFrom', data.filters.createdFrom);
+		if (data.filters.createdTo) params.set('createdTo', data.filters.createdTo);
+		if (data.filters.type) params.set('type', data.filters.type);
+		if (data.filters.collection) params.set('collection', data.filters.collection);
+		for (const tagId of data.filters.tagIds) params.append('tag', tagId);
+		if (data.filters.sort && data.filters.sort !== 'createdAt')
+			params.set('sort', data.filters.sort);
+		if (data.filters.direction && data.filters.direction !== 'desc') {
+			params.set('direction', data.filters.direction);
 		}
-		if (isTyping(event.target)) return;
-		if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
-			event.preventDefault();
-			commandOpen = true;
-			return;
+		return params;
+	}
+
+	function libraryHref(changes: Record<string, string | string[] | null>): string {
+		const params = currentFilterParams();
+		for (const [name, value] of Object.entries(changes)) {
+			params.delete(name);
+			if (Array.isArray(value)) {
+				for (const entry of value) params.append(name, entry);
+			} else if (value) params.set(name, value);
 		}
-		if (event.key === '/') {
-			event.preventDefault();
-			document.querySelector<HTMLInputElement>('#library-search')?.focus();
-			return;
-		}
-		if (event.key.toLowerCase() === 'n') {
-			quickAddOpen = true;
-			return;
-		}
-		if (event.key.toLowerCase() === 'i') {
-			window.location.href = resolve('/app/import');
-			return;
-		}
-		if (shortcutPrefix === 'g') {
-			const destinations: Record<string, string> = {
-				a: resolve('/app'),
-				f: `${resolve('/app')}?view=favorites`,
-				r: `${resolve('/app')}?view=reminders`
-			};
-			const destination = destinations[event.key.toLowerCase()];
-			shortcutPrefix = '';
-			if (destination) window.location.href = destination;
-			return;
-		}
-		if (event.key.toLowerCase() === 'g') {
-			shortcutPrefix = 'g';
-			if (shortcutTimer) clearTimeout(shortcutTimer);
-			shortcutTimer = setTimeout(() => (shortcutPrefix = ''), 900);
-		}
+		const query = params.toString();
+		return query ? `${resolve('/app')}?${query}` : resolve('/app');
+	}
+
+	function tagHref(tagId: string): string {
+		const next = data.filters.tagIds.includes(tagId)
+			? data.filters.tagIds.filter((value) => value !== tagId)
+			: [...data.filters.tagIds, tagId];
+		return libraryHref({ tag: next, cursor: null });
+	}
+
+	function selectedExportHref(): string {
+		const params = new SvelteURLSearchParams();
+		for (const itemId of selected) params.append('id', itemId);
+		return `${resolve('/app/export')}?${params.toString()}`;
+	}
+
+	function searchExportHref(): string {
+		return `${resolve('/app/export')}?search=${encodeURIComponent(data.filters.query)}`;
+	}
+
+	function clearSearchHistory() {
+		localStorage.removeItem('pasted-search-history-v1');
+		recentSearches = [];
 	}
 </script>
-
-<svelte:window onkeydown={handleShortcut} />
 
 <svelte:head>
 	<title>{viewTitle} | Pasted</title>
@@ -182,19 +256,30 @@
 					<h1>{viewTitle}</h1>
 				</div>
 			</div>
-			<div class="head-actions">
-				<button class="command-trigger" type="button" onclick={() => (commandOpen = true)}>
-					<AppIcon name="search" size={17} /><span>Commands</span><kbd>Ctrl K</kbd>
-				</button>
-				<Button size="small" onclick={() => (quickAddOpen = true)}
-					><AppIcon name="plus" size={18} /> Quick add</Button
-				>
-			</div>
 		</header>
+
+		<ReminderAlerts reminders={dueReminders} />
+
+		{#if data.filters.sourceImport}
+			<div class="filter-notice" role="status">
+				<span><AppIcon name="import" size={16} /> Showing links from one completed import.</span>
+				<a href={libraryHref({ sourceImport: null, cursor: null })}>Show the full library</a>
+			</div>
+		{/if}
 
 		<section class="library-tools" aria-label="Library filters">
 			<form bind:this={searchForm} method="GET" class="search-form">
 				<input type="hidden" name="view" value={data.filters.view} />
+				{#if data.filters.sourceImport}<input
+						type="hidden"
+						name="sourceImport"
+						value={data.filters.sourceImport}
+					/>{/if}
+				{#each data.filters.tagIds as tagId (tagId)}<input
+						type="hidden"
+						name="tag"
+						value={tagId}
+					/>{/each}
 				<label class="search-control">
 					<span class="sr-only">Search links, notes, reminders, tags, and collections</span>
 					<AppIcon name="search" size={18} />
@@ -202,6 +287,7 @@
 						id="library-search"
 						name="q"
 						value={data.filters.query}
+						list="search-history"
 						placeholder="Search everything"
 						oninput={debounceSearch}
 					/>
@@ -237,7 +323,53 @@
 					<option value="domain" selected={data.filters.sort === 'domain'}>Domain</option>
 					<option value="dueAt" selected={data.filters.sort === 'dueAt'}>Due date</option>
 				</select>
+				<details
+					class="advanced-filters"
+					open={Boolean(
+						data.filters.domain ||
+						data.filters.createdFrom ||
+						data.filters.createdTo ||
+						data.filters.direction === 'asc'
+					)}
+				>
+					<summary>
+						More filters{activeFilterCount ? ` (${activeFilterCount} active)` : ''}
+					</summary>
+					<div>
+						<label>
+							Domain
+							<input
+								name="domain"
+								value={data.filters.domain}
+								placeholder="example.com"
+								autocapitalize="none"
+								autocomplete="off"
+							/>
+						</label>
+						<label>
+							Created from
+							<input type="date" name="createdFrom" value={data.filters.createdFrom} />
+						</label>
+						<label>
+							Created to
+							<input type="date" name="createdTo" value={data.filters.createdTo} />
+						</label>
+						<label>
+							Direction
+							<select name="direction">
+								<option value="desc" selected={data.filters.direction === 'desc'}>Descending</option
+								>
+								<option value="asc" selected={data.filters.direction === 'asc'}>Ascending</option>
+							</select>
+						</label>
+						<Button type="submit" size="small" variant="outline">Apply filters</Button>
+						{#if activeFilterCount}<a href={resolve('/app')}>Clear filters</a>{/if}
+					</div>
+				</details>
 			</form>
+			<datalist id="search-history">
+				{#each recentSearches as query (query)}<option value={query}></option>{/each}
+			</datalist>
 
 			<div class="view-actions">
 				<div class="view-switch" aria-label="View mode">
@@ -265,15 +397,25 @@
 			<nav class="tag-filters" aria-label="Filter by tag">
 				{#each tags as tag (tag.id)}
 					<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-					<a
-						class:active={data.filters.tagIds.includes(tag.id)}
-						href={`${resolve('/app')}?tag=${tag.id}`}
-					>
+					<a class:active={data.filters.tagIds.includes(tag.id)} href={tagHref(tag.id)}>
 						<span style:background={tag.color ?? '#e7dfd3'}></span>{tag.name}<small
 							>{tag.itemCount}</small
 						>
 					</a>
 				{/each}
+			</nav>
+		{/if}
+
+		{#if recentSearches.length}
+			<nav class="search-history" aria-label="Recent searches">
+				<span>Recent</span>
+				{#each recentSearches as query (query)}
+					<a
+						class:active={data.filters.query === query}
+						href={libraryHref({ q: query, cursor: null })}>{query}</a
+					>
+				{/each}
+				<button type="button" onclick={clearSearchHistory}>Clear</button>
 			</nav>
 		{/if}
 
@@ -292,16 +434,36 @@
 							name="itemIds"
 							value={itemId}
 						/>{/each}
-					<select name="bulkAction" aria-label="Bulk action" required>
+					<select name="bulkAction" aria-label="Bulk action" bind:value={bulkAction} required>
 						<option value="">Choose action</option>
 						<option value="favorite">Favorite</option>
 						<option value="unfavorite">Remove favorite</option>
 						<option value="archive">Archive</option>
 						<option value="unarchive">Restore</option>
+						<option value="move_collection">Move to collection</option>
+						<option value="add_tags">Add tag</option>
+						<option value="remove_tags">Remove tag</option>
 						<option value="delete">Delete</option>
 					</select>
+					{#if bulkAction === 'move_collection'}
+						<select name="collectionId" aria-label="Destination collection">
+							<option value="">Unorganized</option>
+							{#each collections as collection (collection.id)}<option value={collection.id}
+									>{collection.name}</option
+								>{/each}
+						</select>
+					{:else if bulkAction === 'add_tags' || bulkAction === 'remove_tags'}
+						<select name="tagIds" aria-label="Tag" required>
+							<option value="">Choose tag</option>
+							{#each tags as tag (tag.id)}<option value={tag.id}>{tag.name}</option>{/each}
+						</select>
+					{/if}
 					<Button type="submit" size="small" variant="outline">Apply</Button>
+					<a class="selection-export" href={selectedExportHref()}>Export selection</a>
 				</form>
+			{/if}
+			{#if selected.size === 0 && data.filters.query}
+				<a class="selection-export" href={searchExportHref()}>Export search results</a>
 			{/if}
 		</div>
 
@@ -317,19 +479,19 @@
 				{#each items as item (item.id)}
 					<ItemCard
 						{item}
+						{collections}
+						{tags}
+						query={data.filters.query}
 						compact={viewMode === 'list'}
 						selected={selected.has(item.id)}
 						onSelect={toggleItem}
+						onAction={handleItemAction}
 					/>
 				{/each}
 			</section>
 			{#if data.library.nextCursor}
 				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
-				<a
-					class="load-more"
-					href={`${resolve('/app')}?cursor=${encodeURIComponent(data.library.nextCursor)}`}
-					>Load more</a
-				>
+				<a class="load-more" href={libraryHref({ cursor: data.library.nextCursor })}>Load more</a>
 			{/if}
 		{:else}
 			<EmptyState
@@ -345,25 +507,13 @@
 						name={data.filters.query ? 'search' : 'bookmark'}
 						size={28}
 					/>{/snippet}
-				{#snippet actions()}<Button size="small" onclick={() => (quickAddOpen = true)}
+				{#snippet actions()}<Button size="small" onclick={openGlobalQuickAdd}
 						>Add your first item</Button
 					>{/snippet}
 			</EmptyState>
 		{/if}
-
-		{#if data.filters.view === 'reminders' && items.some((item) => item.reminderState === 'pending')}
-			<button class="notification-prompt" type="button" onclick={enableNotifications}>
-				<AppIcon name="bell" />
-				<span
-					><strong>Browser reminders are optional.</strong> Enable them only on this device.</span
-				>
-			</button>
-		{/if}
 	</main>
 </div>
-
-<QuickAdd bind:open={quickAddOpen} {collections} {tags} />
-<CommandPalette bind:open={commandOpen} onQuickAdd={() => (quickAddOpen = true)} />
 
 <Dialog
 	bind:open={collectionOpen}
@@ -388,10 +538,10 @@
 
 <Toast
 	bind:open={toastOpen}
-	tone={form?.success ? 'success' : 'warning'}
-	title={form?.success ? 'Done' : 'Could not save'}
+	tone={toastTone}
+	title={toastTitle}
 	message={actionMessage}
-	assertive={!form?.success}
+	assertive={toastTone === 'warning'}
 />
 
 <style>
@@ -409,12 +559,11 @@
 	.library-head,
 	.library-tools,
 	.library-title,
-	.head-actions,
 	.view-actions,
 	.view-switch,
 	.selection-bar,
 	.selection-bar form,
-	.notification-prompt {
+	.filter-notice {
 		display: flex;
 		align-items: center;
 	}
@@ -450,12 +599,10 @@
 		line-height: 0.88;
 	}
 
-	.head-actions,
 	.view-actions {
 		gap: 0.65rem;
 	}
 
-	.command-trigger,
 	.mobile-menu,
 	.view-switch button,
 	.quiet-action {
@@ -464,13 +611,6 @@
 		border-radius: var(--radius-button);
 		background: transparent;
 		color: inherit;
-	}
-
-	.command-trigger {
-		display: flex;
-		align-items: center;
-		gap: 0.55rem;
-		padding: 0.65rem 0.8rem;
 	}
 
 	kbd {
@@ -493,6 +633,27 @@
 		padding: var(--space-3-75) 0;
 		border-top: var(--border-hairline) solid var(--border-default);
 		border-bottom: var(--border-hairline) solid var(--border-default);
+	}
+
+	.filter-notice {
+		justify-content: space-between;
+		gap: 1rem;
+		margin-bottom: var(--space-5);
+		border-left: 0.3rem solid var(--surface-accent);
+		background: var(--surface-subtle);
+		padding: 0.85rem 1rem;
+		font-size: var(--text-body-small);
+	}
+
+	.filter-notice span {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.filter-notice a {
+		color: inherit;
+		font-weight: var(--font-weight-medium);
 	}
 
 	.search-form {
@@ -525,6 +686,7 @@
 	}
 
 	.search-form select,
+	.search-form input,
 	.selection-bar select {
 		min-height: 2.75rem;
 		border: var(--border-hairline) solid var(--border-default);
@@ -532,6 +694,43 @@
 		background: var(--surface-canvas);
 		color: inherit;
 		padding: 0 0.75rem;
+	}
+
+	.search-control input {
+		border: 0;
+	}
+
+	.advanced-filters {
+		grid-column: 1 / -1;
+		border: 0;
+	}
+
+	.advanced-filters summary {
+		width: fit-content;
+		color: var(--text-muted);
+		font-size: var(--text-body-small);
+		cursor: pointer;
+	}
+
+	.advanced-filters > div {
+		display: grid;
+		grid-template-columns: repeat(4, minmax(9rem, 1fr)) auto auto;
+		align-items: end;
+		gap: 0.55rem;
+		padding-top: 0.75rem;
+	}
+
+	.advanced-filters label {
+		display: grid;
+		gap: 0.35rem;
+		color: var(--text-muted);
+		font-size: var(--text-caption);
+	}
+
+	.advanced-filters a {
+		align-self: center;
+		color: inherit;
+		font-size: var(--text-body-small);
 	}
 
 	.view-switch {
@@ -594,6 +793,43 @@
 		opacity: 0.6;
 	}
 
+	.search-history {
+		display: flex;
+		align-items: center;
+		gap: 0.45rem;
+		padding-top: 0.75rem;
+		overflow-x: auto;
+		font-size: var(--text-caption);
+	}
+
+	.search-history > span {
+		color: var(--text-muted);
+		text-transform: uppercase;
+	}
+
+	.search-history a,
+	.search-history button {
+		flex: 0 0 auto;
+		border: 0;
+		border-radius: var(--radius-full);
+		background: var(--surface-subtle);
+		color: inherit;
+		padding: 0.35rem 0.6rem;
+		font: inherit;
+		text-decoration: none;
+	}
+
+	.search-history a.active {
+		background: var(--color-press-black);
+		color: var(--text-inverse);
+	}
+
+	.search-history button {
+		background: transparent;
+		text-decoration: underline;
+		cursor: pointer;
+	}
+
 	.selection-bar {
 		min-height: 4.5rem;
 		gap: var(--space-3-75);
@@ -632,8 +868,21 @@
 	}
 
 	.selection-bar form {
+		flex-wrap: wrap;
 		gap: 0.5rem;
 		margin-left: auto;
+	}
+
+	.selection-export {
+		display: inline-flex;
+		min-height: 2.75rem;
+		align-items: center;
+		border: var(--border-hairline) solid var(--border-default);
+		border-radius: var(--radius-button);
+		color: inherit;
+		padding: 0.55rem 0.8rem;
+		font-size: var(--text-body-small);
+		text-decoration: none;
 	}
 
 	.items-grid,
@@ -661,23 +910,6 @@
 		text-decoration: none;
 	}
 
-	.notification-prompt {
-		width: 100%;
-		gap: 0.85rem;
-		margin-top: var(--space-7-5);
-		border: var(--border-hairline) solid var(--border-default);
-		border-radius: var(--radius-control);
-		background: color-mix(in srgb, var(--surface-accent) 16%, var(--surface-canvas));
-		color: inherit;
-		padding: 1rem;
-		text-align: left;
-	}
-
-	.notification-prompt span {
-		display: grid;
-		gap: 0.2rem;
-	}
-
 	.dialog-form {
 		display: grid;
 		gap: var(--space-5);
@@ -691,6 +923,10 @@
 
 		.view-actions {
 			justify-content: flex-end;
+		}
+
+		.advanced-filters > div {
+			grid-template-columns: repeat(2, minmax(10rem, 1fr));
 		}
 	}
 
@@ -722,25 +958,21 @@
 			flex-direction: column;
 		}
 
-		.head-actions {
-			width: 100%;
-		}
-
-		.command-trigger {
-			flex: 1;
-		}
-
-		.command-trigger kbd {
-			display: none;
-		}
-
 		.search-form {
-			display: flex;
-			overflow-x: auto;
+			grid-template-columns: 1fr;
 		}
 
 		.search-control {
-			min-width: min(22rem, 88vw);
+			min-width: 0;
+			grid-column: auto;
+		}
+
+		.advanced-filters {
+			grid-column: auto;
+		}
+
+		.advanced-filters > div {
+			grid-template-columns: 1fr;
 		}
 
 		.view-actions {
@@ -756,6 +988,16 @@
 		.selection-bar form {
 			width: 100%;
 			margin: 0;
+		}
+
+		.selection-bar form select,
+		.selection-bar form :global(button) {
+			flex: 1 1 10rem;
+		}
+
+		.filter-notice {
+			align-items: flex-start;
+			flex-direction: column;
 		}
 	}
 </style>

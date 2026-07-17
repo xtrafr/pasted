@@ -8,9 +8,7 @@ import {
 	createNote,
 	createReminder,
 	createTag,
-	listCollections,
-	listItems,
-	listTags
+	listItems
 } from '$lib/server/services';
 import type { ListItemsInput } from '$lib/server/validation';
 
@@ -35,6 +33,11 @@ function nullableText(form: FormData, key: string): string | null | undefined {
 
 function checked(form: FormData, key: string): boolean {
 	return form.get(key) === 'on' || form.get(key) === 'true';
+}
+
+function dateBoundary(value: string, endOfDay = false): string {
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+	return new Date(`${value}T${endOfDay ? '23:59:59.999' : '00:00:00.000'}Z`).toISOString();
 }
 
 function tagIds(form: FormData): string[] {
@@ -68,6 +71,10 @@ function listInput(url: URL): ListItemsInput {
 	const sort = url.searchParams.get('sort');
 	const direction = url.searchParams.get('direction');
 	const query = url.searchParams.get('q')?.trim();
+	const sourceImportId = url.searchParams.get('sourceImport')?.trim();
+	const domain = url.searchParams.get('domain')?.trim().toLowerCase();
+	const createdFrom = url.searchParams.get('createdFrom')?.trim();
+	const createdTo = url.searchParams.get('createdTo')?.trim();
 	const input: ListItemsInput = {
 		archived: view === 'archived',
 		sortDirection: direction === 'asc' ? ('asc' as const) : ('desc' as const),
@@ -78,6 +85,10 @@ function listInput(url: URL): ListItemsInput {
 		limit: 60
 	};
 	if (query) input.query = query;
+	if (sourceImportId) input.sourceImportId = sourceImportId;
+	if (domain) input.domains = [domain];
+	if (createdFrom) input.createdFrom = dateBoundary(createdFrom);
+	if (createdTo) input.createdTo = dateBoundary(createdTo, true);
 	if (type === 'link' || type === 'note' || type === 'reminder') input.types = [type];
 	if (view === 'reminders') input.types = ['reminder'];
 	if (view === 'favorites') input.favorite = true;
@@ -91,19 +102,27 @@ function listInput(url: URL): ListItemsInput {
 
 export const load: PageServerLoad = async ({ locals, url }) => {
 	const userId = requiredUserId(locals);
-	const [library, collections, tags] = await Promise.all([
+	const [library, dueReminders] = await Promise.all([
 		listItems(userId, listInput(url)),
-		listCollections(userId),
-		listTags(userId)
+		listItems(userId, {
+			types: ['reminder'],
+			reminderStates: ['pending'],
+			sortBy: 'dueAt',
+			sortDirection: 'asc',
+			limit: 20
+		})
 	]);
 
 	return {
 		library,
-		collections,
-		tags,
+		dueReminders: dueReminders.items,
 		filters: {
 			view: url.searchParams.get('view') ?? 'all',
 			query: url.searchParams.get('q') ?? '',
+			sourceImport: url.searchParams.get('sourceImport') ?? '',
+			domain: url.searchParams.get('domain') ?? '',
+			createdFrom: url.searchParams.get('createdFrom') ?? '',
+			createdTo: url.searchParams.get('createdTo') ?? '',
 			type: url.searchParams.get('type') ?? '',
 			collection: url.searchParams.get('collection') ?? '',
 			tagIds: url.searchParams.getAll('tag'),
