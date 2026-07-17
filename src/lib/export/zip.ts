@@ -12,8 +12,8 @@ import {
 export const BACKUP_JSON_FILENAME = 'pasted-backup.json';
 export const BACKUP_README_FILENAME = 'README.txt';
 
-function createReadme(backupJson: string): string {
-	const backup = parsePastedBackupJson(backupJson);
+function createReadme(backupJson: string, limits: BackupRestoreLimits): string {
+	const backup = parsePastedBackupJson(backupJson, limits);
 	return [
 		'Pasted backup',
 		'',
@@ -29,16 +29,26 @@ function createReadme(backupJson: string): string {
 
 export function createBackupZip(
 	source: ExportSourceData,
-	options: ExportBuildOptions = {}
+	options: ExportBuildOptions = {},
+	limits: BackupRestoreLimits = { ...DEFAULT_BACKUP_RESTORE_LIMITS }
 ): Uint8Array {
-	const backupJson = serializePastedJson(source, options);
-	return zipSync(
+	const backupJson = serializePastedJson(source, options, limits);
+	const readme = createReadme(backupJson, limits);
+	const uncompressedBytes = strToU8(backupJson).byteLength + strToU8(readme).byteLength;
+	if (uncompressedBytes > limits.maxUncompressedBytes) {
+		throw zipIssue(`Backup ZIP exceeds the ${limits.maxUncompressedBytes} uncompressed byte limit`);
+	}
+	const bytes = zipSync(
 		{
 			[BACKUP_JSON_FILENAME]: strToU8(backupJson),
-			[BACKUP_README_FILENAME]: strToU8(createReadme(backupJson))
+			[BACKUP_README_FILENAME]: strToU8(readme)
 		},
 		{ level: 6 }
 	);
+	if (bytes.byteLength > limits.maxZipBytes) {
+		throw zipIssue(`Backup ZIP exceeds the ${limits.maxZipBytes} byte limit`);
+	}
+	return bytes;
 }
 
 function zipIssue(message: string, cause?: unknown): BackupValidationError {

@@ -132,26 +132,29 @@ function exportItem(item: ListedItem): ExportItem {
 }
 
 async function allItems(userId: string): Promise<ListedItem[]> {
+	const maximumItems = 100_000;
 	const rows: ListedItem[] = [];
 	for (const archived of [false, true]) {
 		let cursor: string | undefined;
-		for (let page = 0; page < 1_000; page += 1) {
+		do {
 			const result = await listItems(userId, {
 				archived,
 				limit: 100,
 				...(cursor ? { cursor } : {})
 			});
-			rows.push(...result.items);
-			cursor = result.nextCursor;
-			if (!cursor) break;
-			if (rows.length > 100_000) {
+			if (
+				rows.length + result.items.length > maximumItems ||
+				(rows.length + result.items.length === maximumItems && result.nextCursor)
+			) {
 				throw new ServiceError(
 					'validation_failed',
 					'Account exports are limited to 100,000 items',
 					400
 				);
 			}
-		}
+			rows.push(...result.items);
+			cursor = result.nextCursor;
+		} while (cursor);
 	}
 	return rows;
 }

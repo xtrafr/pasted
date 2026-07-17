@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { validatePastedBackup, type PastedBackupV1 } from '$lib/export';
+import { assertPastedBackupJsonSize, validatePastedBackup, type PastedBackupV1 } from '$lib/export';
 import { db } from '$lib/server/db';
 import {
 	collections,
@@ -90,6 +90,7 @@ export async function restorePastedBackup(userId: string, input: RestoreBackupIn
 	return serviceOperation(async () => {
 		const ownerId = requireUserId(userId);
 		const request = parseInput(restoreRequestSchema, input);
+		assertPastedBackupJsonSize(request.backup);
 		const backup = validatePastedBackup(request.backup);
 		const hash = restoreHash(backup);
 		const targetIdsToQueue: string[] = [];

@@ -846,16 +846,35 @@ export function validatePastedBackup(
 	return value as PastedBackupV1;
 }
 
-export function parsePastedBackupJson(
-	json: string,
+export function assertPastedBackupJsonSize(
+	value: unknown,
 	limits: BackupRestoreLimits = { ...DEFAULT_BACKUP_RESTORE_LIMITS }
-): PastedBackupV1 {
+): number {
+	let json: string;
+	try {
+		json = typeof value === 'string' ? value : JSON.stringify(value);
+	} catch (error) {
+		throw new BackupValidationError([{ path: '$', message: 'Backup is not valid JSON' }], {
+			cause: error
+		});
+	}
+	if (typeof json !== 'string') {
+		throw new BackupValidationError([{ path: '$', message: 'Backup is not valid JSON' }]);
+	}
 	const size = new TextEncoder().encode(json).byteLength;
 	if (size > limits.maxJsonBytes) {
 		throw new BackupValidationError([
 			{ path: '$', message: `Backup JSON exceeds the ${limits.maxJsonBytes} byte limit` }
 		]);
 	}
+	return size;
+}
+
+export function parsePastedBackupJson(
+	json: string,
+	limits: BackupRestoreLimits = { ...DEFAULT_BACKUP_RESTORE_LIMITS }
+): PastedBackupV1 {
+	assertPastedBackupJsonSize(json, limits);
 	let parsed: unknown;
 	try {
 		parsed = JSON.parse(json) as unknown;

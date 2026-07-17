@@ -7,7 +7,12 @@ import {
 	type ExportSourceData,
 	type PastedBackupV1
 } from './types';
-import { validatePastedBackup } from './validation';
+import {
+	assertPastedBackupJsonSize,
+	DEFAULT_BACKUP_RESTORE_LIMITS,
+	type BackupRestoreLimits,
+	validatePastedBackup
+} from './validation';
 
 export function createPastedBackup(
 	source: ExportSourceData,
@@ -38,7 +43,10 @@ export function createPastedBackup(
 
 export function serializePastedJson(
 	source: ExportSourceData,
-	options: ExportBuildOptions = {}
+	options: ExportBuildOptions = {},
+	limits: BackupRestoreLimits = { ...DEFAULT_BACKUP_RESTORE_LIMITS }
 ): string {
-	return `${JSON.stringify(createPastedBackup(source, options), null, 2)}\n`;
+	const json = `${JSON.stringify(createPastedBackup(source, options), null, 2)}\n`;
+	assertPastedBackupJsonSize(json, limits);
+	return json;
 }

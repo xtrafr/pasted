@@ -8,6 +8,7 @@ import {
 	DEFAULT_BACKUP_RESTORE_LIMITS,
 	PASTED_BACKUP_FORMAT,
 	PASTED_BACKUP_VERSION,
+	assertPastedBackupJsonSize,
 	createBackupZip,
 	createExportArtifact,
 	createPastedBackup,
@@ -255,6 +256,18 @@ describe('versioned Pasted backup', () => {
 				serializePastedJson(source, { exportedAt: EXPORTED_AT }),
 				limits({ maxJsonBytes: 10 })
 			)
+		).toThrow(/byte limit/);
+	});
+
+	it('enforces UTF-8 byte limits for parsed objects and generated backups', () => {
+		expect(() => assertPastedBackupJsonSize('é', limits({ maxJsonBytes: 1 }))).toThrow(
+			/byte limit/
+		);
+		expect(() => assertPastedBackupJsonSize(cloneBackup(), limits({ maxJsonBytes: 10 }))).toThrow(
+			/byte limit/
+		);
+		expect(() =>
+			serializePastedJson(source, { exportedAt: EXPORTED_AT }, limits({ maxJsonBytes: 10 }))
 		).toThrow(/byte limit/);
 	});
 
@@ -536,6 +549,12 @@ describe('ZIP backup and export artifacts', () => {
 		expect(() => parsePastedBackupZip(bytes, limits({ maxUncompressedBytes: 10 }))).toThrow(
 			/uncompressed byte limit/
 		);
+		expect(() =>
+			createBackupZip(source, { exportedAt: EXPORTED_AT }, limits({ maxZipBytes: 1 }))
+		).toThrow(/ZIP exceeds/);
+		expect(() =>
+			createBackupZip(source, { exportedAt: EXPORTED_AT }, limits({ maxUncompressedBytes: 10 }))
+		).toThrow(/uncompressed byte limit/);
 	});
 
 	it('builds named artifacts and reports exact UTF-8 sizes for every format', () => {
