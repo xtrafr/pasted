@@ -30,11 +30,21 @@ import {
 } from './index';
 
 const EXPORTED_AT = '2026-07-17T10:30:00.000Z';
+const IDS = {
+	readingCollection: '10000000-0000-4000-8000-000000000001',
+	emptyCollection: '10000000-0000-4000-8000-000000000002',
+	workTag: '20000000-0000-4000-8000-000000000001',
+	specialTag: '20000000-0000-4000-8000-000000000002',
+	firstLink: '30000000-0000-4000-8000-000000000001',
+	secondLink: '30000000-0000-4000-8000-000000000002',
+	note: '30000000-0000-4000-8000-000000000003',
+	reminder: '30000000-0000-4000-8000-000000000004'
+} as const;
 
 const source: ExportSourceData = {
 	collections: [
 		{
-			id: 'c-reading',
+			id: IDS.readingCollection,
 			name: 'Reading, later',
 			description: 'Things to review',
 			color: '#4f46e5',
@@ -45,7 +55,7 @@ const source: ExportSourceData = {
 			updatedAt: '2026-06-01T08:00:00.000Z'
 		},
 		{
-			id: 'c-empty',
+			id: IDS.emptyCollection,
 			name: 'Empty collection',
 			description: null,
 			color: null,
@@ -58,14 +68,14 @@ const source: ExportSourceData = {
 	],
 	tags: [
 		{
-			id: 't-work',
+			id: IDS.workTag,
 			name: 'Work',
 			color: '#0f766e',
 			createdAt: '2026-01-02T08:00:00.000Z',
 			updatedAt: '2026-01-02T08:00:00.000Z'
 		},
 		{
-			id: 't-special',
+			id: IDS.specialTag,
 			name: '=Formula, tag',
 			color: null,
 			createdAt: '2026-01-03T08:00:00.000Z',
@@ -74,12 +84,12 @@ const source: ExportSourceData = {
 	],
 	items: [
 		{
-			id: 'l-one',
+			id: IDS.firstLink,
 			type: 'link',
 			title: 'A "quoted", title',
 			description: 'First line\nSecond line',
-			collectionId: 'c-reading',
-			tagIds: ['t-work', 't-special'],
+			collectionId: IDS.readingCollection,
+			tagIds: [IDS.workTag, IDS.specialTag],
 			state: 'active',
 			favorite: true,
 			archived: false,
@@ -106,7 +116,7 @@ const source: ExportSourceData = {
 			}
 		},
 		{
-			id: 'l-two',
+			id: IDS.secondLink,
 			type: 'link',
 			title: '=SUM(A1:A2)',
 			description: null,
@@ -130,12 +140,12 @@ const source: ExportSourceData = {
 			}
 		},
 		{
-			id: 'n-one',
+			id: IDS.note,
 			type: 'note',
 			title: 'Release checklist',
 			description: 'A fake note',
 			collectionId: null,
-			tagIds: ['t-work'],
+			tagIds: [IDS.workTag],
 			state: 'active',
 			favorite: false,
 			archived: false,
@@ -146,12 +156,12 @@ const source: ExportSourceData = {
 			note: { body: 'Check **tests**.\n\nThen publish.' }
 		},
 		{
-			id: 'r-one',
+			id: IDS.reminder,
 			type: 'reminder',
 			title: 'Review export',
 			description: null,
-			collectionId: 'c-reading',
-			tagIds: ['t-work'],
+			collectionId: IDS.readingCollection,
+			tagIds: [IDS.workTag],
 			state: 'active',
 			favorite: false,
 			archived: false,
@@ -185,6 +195,16 @@ function required<T>(value: T | undefined, label: string): T {
 	return value;
 }
 
+function validationPaths(value: unknown): string[] {
+	try {
+		validatePastedBackup(value);
+		expect.unreachable('Expected backup validation to fail');
+	} catch (error) {
+		expect(error).toBeInstanceOf(BackupValidationError);
+		return (error as BackupValidationError).issues.map(({ path }) => path);
+	}
+}
+
 describe('versioned Pasted backup', () => {
 	it('round trips every restorable field and retains empty taxonomy', () => {
 		const json = serializePastedJson(source, {
@@ -203,7 +223,7 @@ describe('versioned Pasted backup', () => {
 			collectionCount: 2,
 			tagCount: 2
 		});
-		expect(restored.data.collections.map(({ id }) => id)).toContain('c-empty');
+		expect(restored.data.collections.map(({ id }) => id)).toContain(IDS.emptyCollection);
 		expect(json).not.toContain('userId');
 	});
 
@@ -237,16 +257,107 @@ describe('versioned Pasted backup', () => {
 			)
 		).toThrow(/byte limit/);
 	});
+
+	it('rejects unknown properties throughout the versioned shape', () => {
+		const broken = cloneBackup() as unknown as Record<string, unknown>;
+		broken.unexpected = true;
+		const data = broken.data as PastedBackupV1['data'];
+		const first = required(data.items[0], 'first backup item');
+		(first as unknown as Record<string, unknown>).note = { body: 'Wrong variant' };
+		if (first.type !== 'link' || first.link.metadata === null) {
+			throw new Error('Expected a link fixture with metadata');
+		}
+		(first.link.metadata as unknown as Record<string, unknown>).ownerId = 'private';
+
+		const paths = validationPaths(broken);
+		expect(paths).toContain('$.unexpected');
+		expect(paths).toContain('$.data.items[0].note');
+		expect(paths).toContain('$.data.items[0].link.metadata.ownerId');
+	});
+
+	it('enforces CRUD string limits on restorable fields', () => {
+		const broken = cloneBackup();
+		broken.data.collections[0]!.name = 'c'.repeat(121);
+		broken.data.tags[0]!.name = 't'.repeat(81);
+		broken.data.items[0]!.title = 'i'.repeat(301);
+		const link = broken.data.items.find((item) => item.type === 'link');
+		if (!link || link.type !== 'link') throw new Error('Expected a link fixture');
+		link.link.personalNotes = 'p'.repeat(20_001);
+
+		const paths = validationPaths(broken);
+		expect(paths).toContain('$.data.collections[0].name');
+		expect(paths).toContain('$.data.tags[0].name');
+		expect(paths).toContain('$.data.items[0].title');
+		expect(paths).toContain('$.data.items[0].link.personalNotes');
+	});
+
+	it('rejects invalid colors, UUIDs, timestamps, and IANA time zones', () => {
+		const broken = cloneBackup();
+		broken.data.collections[0]!.color = 'indigo';
+		broken.data.tags[0]!.id = 'not-a-uuid';
+		broken.data.items[0]!.tagIds = ['also-not-a-uuid'];
+		broken.data.items[0]!.createdAt = '2026-02-30T09:00:00.000Z';
+		const reminder = broken.data.items.find((item) => item.type === 'reminder');
+		if (!reminder || reminder.type !== 'reminder') throw new Error('Expected a reminder fixture');
+		reminder.reminder.timeZone = 'Mars/Olympus';
+
+		const paths = validationPaths(broken);
+		expect(paths).toContain('$.data.collections[0].color');
+		expect(paths).toContain('$.data.tags[0].id');
+		expect(paths).toContain('$.data.items[0].tagIds[0]');
+		expect(paths).toContain('$.data.items[0].createdAt');
+		expect(paths).toContain('$.data.items[3].reminder.timeZone');
+	});
+
+	it('rejects URL credentials and a domain that differs from the normalized URL', () => {
+		const broken = cloneBackup();
+		const link = broken.data.items.find((item) => item.type === 'link');
+		if (!link || link.type !== 'link') throw new Error('Expected a link fixture');
+		link.link.originalUrl = 'https://person:secret@example.com/private';
+		link.link.domain = 'other.example';
+
+		const paths = validationPaths(broken);
+		expect(paths).toContain('$.data.items[0].link.originalUrl');
+		expect(paths).toContain('$.data.items[0].link.domain');
+	});
+
+	it('enforces archive types and relationship cardinality', () => {
+		const broken = cloneBackup();
+		const first = required(broken.data.items[0], 'first backup item');
+		(first as unknown as Record<string, unknown>).archived = 'yes';
+		first.tagIds = Array.from(
+			{ length: 51 },
+			(_, index) => `40000000-0000-4000-8000-${index.toString(16).padStart(12, '0')}`
+		);
+
+		const paths = validationPaths(broken);
+		expect(paths).toContain('$.data.items[0].archived');
+		expect(paths).toContain('$.data.items[0].tagIds');
+	});
+
+	it('rejects duplicate taxonomy names that would collapse during restore', () => {
+		const broken = cloneBackup();
+		broken.data.collections[1]!.name = broken.data.collections[0]!.name;
+		broken.data.tags[1]!.name = broken.data.tags[0]!.name;
+
+		const paths = validationPaths(broken);
+		expect(paths).toContain('$.data.collections[1].name');
+		expect(paths).toContain('$.data.tags[1].name');
+	});
 });
 
 describe('selection, filters, and privacy', () => {
 	it('combines selection with collection, tags, type, domain, favorite, and dates', () => {
 		const selected = selectExportData(
 			source,
-			{ kind: 'search', itemIds: ['l-one', 'l-two', 'n-one'], query: 'fake query' },
 			{
-				collectionIds: ['c-reading'],
-				tagIds: ['t-work', 't-special'],
+				kind: 'search',
+				itemIds: [IDS.firstLink, IDS.secondLink, IDS.note],
+				query: 'fake query'
+			},
+			{
+				collectionIds: [IDS.readingCollection],
+				tagIds: [IDS.workTag, IDS.specialTag],
 				tagMatch: 'all',
 				types: ['link'],
 				domains: ['EXAMPLE.COM'],
@@ -257,12 +368,12 @@ describe('selection, filters, and privacy', () => {
 			}
 		);
 
-		expect(selected.data.items.map(({ id }) => id)).toEqual(['l-one']);
-		expect(selected.data.collections.map(({ id }) => id)).toEqual(['c-reading']);
-		expect(selected.data.tags.map(({ id }) => id)).toEqual(['t-work', 't-special']);
+		expect(selected.data.items.map(({ id }) => id)).toEqual([IDS.firstLink]);
+		expect(selected.data.collections.map(({ id }) => id)).toEqual([IDS.readingCollection]);
+		expect(selected.data.tags.map(({ id }) => id)).toEqual([IDS.workTag, IDS.specialTag]);
 		expect(selected.selection).toEqual({
 			kind: 'search',
-			itemIds: ['l-one', 'l-two', 'n-one'],
+			itemIds: [IDS.firstLink, IDS.secondLink, IDS.note],
 			query: 'fake query'
 		});
 		expect(selected.filters.domains).toEqual(['example.com']);
@@ -271,7 +382,7 @@ describe('selection, filters, and privacy', () => {
 	it('supports manual reminder selection and privacy exclusions without mutating input', () => {
 		const backup = createPastedBackup(source, {
 			exportedAt: EXPORTED_AT,
-			selection: { kind: 'manual', itemIds: ['n-one', 'r-one'] },
+			selection: { kind: 'manual', itemIds: [IDS.note, IDS.reminder] },
 			filters: { reminderStates: ['pending'] },
 			privacy: {
 				includePersonalNotes: false,
@@ -282,7 +393,7 @@ describe('selection, filters, and privacy', () => {
 			}
 		});
 
-		expect(backup.data.items.map(({ id }) => id)).toEqual(['r-one']);
+		expect(backup.data.items.map(({ id }) => id)).toEqual([IDS.reminder]);
 		const reminder = required(backup.data.items[0], 'selected reminder');
 		expect(reminder.sourceDate).toBeNull();
 		expect(reminder.type).toBe('reminder');
@@ -312,9 +423,9 @@ describe('selection, filters, and privacy', () => {
 				includeReminderDescriptions: false
 			}
 		});
-		const link = backup.data.items.find(({ id }) => id === 'l-one');
-		const note = backup.data.items.find(({ id }) => id === 'n-one');
-		const reminder = backup.data.items.find(({ id }) => id === 'r-one');
+		const link = backup.data.items.find(({ id }) => id === IDS.firstLink);
+		const note = backup.data.items.find(({ id }) => id === IDS.note);
+		const reminder = backup.data.items.find(({ id }) => id === IDS.reminder);
 
 		expect(backup.data.items.every((item) => item.sourceDate === null)).toBe(true);
 		if (link?.type === 'link') {

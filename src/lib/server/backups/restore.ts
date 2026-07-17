@@ -25,6 +25,7 @@ import {
 	refreshSearchDocuments,
 	replaceItemTags
 } from '$lib/server/repositories/items.repository';
+import { enqueueOwnedMetadataBestEffort } from '$lib/server/jobs';
 import { insertCollection, insertTag } from '$lib/server/repositories/taxonomy.repository';
 import { normalizeServiceUrl, serviceOperation } from '$lib/server/services/internal';
 
@@ -91,8 +92,9 @@ export async function restorePastedBackup(userId: string, input: RestoreBackupIn
 		const request = parseInput(restoreRequestSchema, input);
 		const backup = validatePastedBackup(request.backup);
 		const hash = restoreHash(backup);
+		const targetIdsToQueue: string[] = [];
 
-		return db.transaction(async (tx) => {
+		const summary = await db.transaction(async (tx) => {
 			const [existing] = await tx
 				.select()
 				.from(importSessions)
@@ -219,6 +221,7 @@ export async function restorePastedBackup(userId: string, input: RestoreBackupIn
 						sourceType: source.link.sourceType,
 						sourceImportId: session.id
 					});
+					targetIdsToQueue.push(target.id);
 					await tx
 						.update(links)
 						.set({ createdAt: new Date(source.createdAt), updatedAt: new Date(source.updatedAt) })
@@ -230,12 +233,11 @@ export async function restorePastedBackup(userId: string, input: RestoreBackupIn
 								metadataTitle: source.link.metadata.title,
 								metadataDescription: source.link.metadata.description,
 								siteName: source.link.metadata.siteName,
-								metadataState: source.link.metadata.state,
-								metadataErrorCode: source.link.metadata.errorCode,
+								metadataState: 'pending',
+								metadataErrorCode: null,
 								httpStatus: source.link.metadata.httpStatus,
-								lastFetchedAt: source.link.metadata.lastFetchedAt
-									? new Date(source.link.metadata.lastFetchedAt)
-									: null
+								lastFetchedAt: null,
+								nextRetryAt: null
 							})
 							.where(and(eq(linkTargets.userId, ownerId), eq(linkTargets.id, target.id)));
 					}
@@ -317,5 +319,7 @@ export async function restorePastedBackup(userId: string, input: RestoreBackupIn
 
 			return { sessionId: session.id, ...summary, replayed: false } satisfies RestoreSummary;
 		});
+		await enqueueOwnedMetadataBestEffort(ownerId, targetIdsToQueue);
+		return summary;
 	});
 }
