@@ -69,6 +69,23 @@ export const account = pgTable(
 	]
 );
 
+/**
+ * Maps a high-entropy access code to its Better Auth user without retaining the
+ * code itself. The matching Better Auth account row owns the password verifier.
+ */
+export const accessCredential = pgTable(
+	'access_credential',
+	{
+		userId: text('user_id')
+			.primaryKey()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		lookupHash: text('lookup_hash').notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+		lastUsedAt: timestamp('last_used_at', { withTimezone: true })
+	},
+	(table) => [uniqueIndex('access_credential_lookup_hash_uidx').on(table.lookupHash)]
+);
+
 export const verification = pgTable(
 	'verification',
 	{
@@ -93,5 +110,8 @@ export const rateLimit = pgTable(
 		count: integer('count').notNull(),
 		lastRequest: bigint('last_request', { mode: 'number' }).notNull()
 	},
-	(table) => [uniqueIndex('rate_limit_key_uidx').on(table.key)]
+	(table) => [
+		uniqueIndex('rate_limit_key_uidx').on(table.key),
+		index('rate_limit_last_request_idx').on(table.lastRequest)
+	]
 );

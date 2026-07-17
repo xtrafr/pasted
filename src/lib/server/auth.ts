@@ -6,16 +6,6 @@ import { db } from '$lib/server/db';
 import * as schema from '$lib/server/db/schema';
 import { runtimeConfig } from '$lib/server/config';
 
-const socialProviders =
-	runtimeConfig.githubClientId && runtimeConfig.githubClientSecret
-		? {
-				github: {
-					clientId: runtimeConfig.githubClientId,
-					clientSecret: runtimeConfig.githubClientSecret
-				}
-			}
-		: {};
-
 export const auth = betterAuth({
 	appName: 'Pasted',
 	baseURL: runtimeConfig.origin,
@@ -33,20 +23,18 @@ export const auth = betterAuth({
 	database: drizzleAdapter(db, { provider: 'pg', schema }),
 	emailAndPassword: {
 		enabled: true,
+		disableSignUp: true,
 		minPasswordLength: 12,
 		maxPasswordLength: 128,
 		revokeSessionsOnPasswordReset: true
 	},
-	socialProviders,
 	rateLimit: {
 		enabled: true,
 		storage: 'database',
 		window: 60,
 		max: 60,
 		customRules: {
-			'/sign-in/email': { window: 60, max: 8 },
-			'/sign-up/email': { window: 300, max: 5 },
-			'/request-password-reset': { window: 300, max: 3 }
+			'/sign-in/email': { window: 60, max: 30 }
 		}
 	},
 	session: {

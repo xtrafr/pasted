@@ -5,6 +5,7 @@ describe('log redaction', () => {
 	it('redacts sensitive values recursively without mutating safe context', () => {
 		const output = redactLogObject({
 			requestId: 'request-1',
+			accessCode: 'Abcdefghijklmnop1234567890123456',
 			body: {
 				originalUrl: 'https://private.example/path?token=hidden',
 				profile: { password: 'hidden-password' },
@@ -19,6 +20,8 @@ describe('log redaction', () => {
 		expect(JSON.stringify(output)).not.toContain('hidden-password');
 		expect(JSON.stringify(output)).not.toContain('hidden-key');
 		expect(JSON.stringify(output)).not.toContain('hidden-token');
+		expect(JSON.stringify(output)).not.toContain('Abcdefghijklmnop1234567890123456');
+		expect(output.accessCode).toBe('[redacted]');
 		expect(output.err).toEqual({ name: 'Error' });
 	});
 });

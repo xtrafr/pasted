@@ -45,8 +45,6 @@ export const runtimeConfig = {
 	origin: env.ORIGIN ?? 'http://localhost:5173',
 	authSecret: env.BETTER_AUTH_SECRET ?? localAuthSecret,
 	trustedProxyIps: parseTrustedProxyIps(env.TRUSTED_PROXY_IPS),
-	githubClientId: env.GITHUB_CLIENT_ID,
-	githubClientSecret: env.GITHUB_CLIENT_SECRET,
 	isProduction: env.NODE_ENV === 'production'
 } as const;
 

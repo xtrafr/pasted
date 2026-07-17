@@ -10,7 +10,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 	]);
 
 	return {
-		user: locals.user,
+		user: { id: locals.user.id, name: locals.user.name },
 		collections,
 		tags
 	};

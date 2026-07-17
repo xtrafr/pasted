@@ -6,7 +6,7 @@ export const jobLogger = pino({
 	base: { service: 'pasted', process: 'metadata-worker' },
 	formatters: { log: redactLogObject },
 	redact: {
-		paths: ['token', 'url', 'originalUrl', 'normalizedUrl', 'hostname'],
+		paths: ['accessCode', 'token', 'url', 'originalUrl', 'normalizedUrl', 'hostname'],
 		censor: '[redacted]'
 	}
 });

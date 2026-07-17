@@ -1,5 +1,7 @@
+import { createHash } from 'node:crypto';
 import { hashPassword } from 'better-auth/crypto';
 import pg, { type QueryResultRow } from 'pg';
+import { hashAccessCode } from '../../src/lib/server/access-auth/access-code';
 
 const { Client } = pg;
 
@@ -16,8 +18,16 @@ export interface DatabaseStatus {
 export interface TestAccount {
 	id: string;
 	name: string;
-	email: string;
-	password: string;
+	accessCode: string;
+}
+
+export function testAccessCodeLookupHash(accessCode: string): string {
+	return hashAccessCode(accessCode);
+}
+
+export function testAccountEmail(account: Pick<TestAccount, 'id'>): string {
+	const opaqueId = createHash('sha256').update(`pasted-test-account\0${account.id}`).digest('hex');
+	return `access.${opaqueId.slice(0, 32)}@accounts.pasted.invalid`;
 }
 
 export async function inspectTestDatabase(): Promise<DatabaseStatus> {
@@ -28,11 +38,20 @@ export async function inspectTestDatabase(): Promise<DatabaseStatus> {
 
 	try {
 		await client.connect();
-		const result = await client.query<{ user_table: string | null; items_table: string | null }>(
+		const result = await client.query<{
+			user_table: string | null;
+			items_table: string | null;
+			access_credential_table: string | null;
+		}>(
 			`select to_regclass('public.user')::text as user_table,
-			        to_regclass('public.items')::text as items_table`
+			        to_regclass('public.items')::text as items_table,
+			        to_regclass('public.access_credential')::text as access_credential_table`
 		);
-		if (!result.rows[0]?.user_table || !result.rows[0]?.items_table) {
+		if (
+			!result.rows[0]?.user_table ||
+			!result.rows[0]?.items_table ||
+			!result.rows[0]?.access_credential_table
+		) {
 			return {
 				available: false,
 				reason:
@@ -52,27 +71,36 @@ export async function inspectTestDatabase(): Promise<DatabaseStatus> {
 }
 
 export async function seedTestAccount(account: TestAccount): Promise<void> {
-	if (account.password.length < 12)
-		throw new Error('Test account passwords must have 12 characters');
+	if (
+		!/^[A-Za-z0-9]{32}$/.test(account.accessCode) ||
+		!/[A-Za-z]/.test(account.accessCode) ||
+		!/[0-9]/.test(account.accessCode)
+	) {
+		throw new Error('Test account access codes must be 32 mixed alphanumeric characters');
+	}
 
 	const client = new Client({ connectionString: testDatabaseUrl });
 	await client.connect();
 	try {
 		await client.query('begin');
-		await client.query('delete from "user" where id = $1 or email = $2', [
-			account.id,
-			account.email.toLowerCase()
-		]);
-		const passwordHash = await hashPassword(account.password);
+		const email = testAccountEmail(account);
+		await client.query('delete from "user" where id = $1 or email = $2', [account.id, email]);
+		const passwordHash = await hashPassword(account.accessCode);
+		const lookupHash = testAccessCodeLookupHash(account.accessCode);
 		await client.query(
 			`insert into "user" (id, name, email, email_verified)
 			 values ($1, $2, $3, true)`,
-			[account.id, account.name, account.email.toLowerCase()]
+			[account.id, account.name, email]
 		);
 		await client.query(
 			`insert into account (id, account_id, provider_id, user_id, password)
 			 values ($1, $2, 'credential', $2, $3)`,
 			[`credential_${account.id}`, account.id, passwordHash]
+		);
+		await client.query(
+			`insert into access_credential (user_id, lookup_hash)
+			 values ($1, $2)`,
+			[account.id, lookupHash]
 		);
 		await client.query('commit');
 	} catch (error) {

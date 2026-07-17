@@ -12,6 +12,8 @@ export const logger = pino({
 	},
 	redact: {
 		paths: [
+			'accessCode',
+			'*.accessCode',
 			'password',
 			'*.password',
 			'token',

@@ -1,18 +1,27 @@
 import { hashPassword } from 'better-auth/crypto';
 import pg from 'pg';
+import { hashAccessCode } from '../src/lib/server/access-auth/access-code.ts';
 
 const { Client } = pg;
 
 const databaseUrl = process.env.DATABASE_URL;
-const demoEmail = (process.env.DEMO_USER_EMAIL ?? 'demo@example.com').trim().toLowerCase();
-const demoPassword = process.env.DEMO_USER_PASSWORD ?? 'demo-password-change-me';
+const demoAccessCode = process.env.DEMO_ACCESS_CODE?.trim();
+const demoEmail = 'access.8c364b8f545376c4008e1e212df98432@accounts.pasted.invalid';
 
 if (!databaseUrl) {
 	throw new Error('DATABASE_URL is required to seed the database');
 }
 
-if (demoPassword.length < 12) {
-	throw new Error('DEMO_USER_PASSWORD must contain at least 12 characters');
+if (!demoAccessCode) {
+	throw new Error('DEMO_ACCESS_CODE is required to seed an account you can access');
+}
+
+if (
+	!/^[A-Za-z0-9]{32}$/.test(demoAccessCode) ||
+	!/[A-Za-z]/.test(demoAccessCode) ||
+	!/[0-9]/.test(demoAccessCode)
+) {
+	throw new Error('DEMO_ACCESS_CODE must contain exactly 32 mixed alphanumeric characters');
 }
 
 const ids = {
@@ -46,7 +55,8 @@ try {
 	await client.query('begin');
 	transactionStarted = true;
 
-	const passwordHash = await hashPassword(demoPassword);
+	const passwordHash = await hashPassword(demoAccessCode);
+	const lookupHash = hashAccessCode(demoAccessCode);
 	const reminderDueAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1_000);
 
 	await client.query(
@@ -63,6 +73,14 @@ try {
 		 on conflict (id) do update
 		 set password = excluded.password, updated_at = now()`,
 		[ids.account, ids.user, passwordHash]
+	);
+
+	await client.query(
+		`insert into access_credential (user_id, lookup_hash)
+		 values ($1, $2)
+		 on conflict (user_id) do update
+		 set lookup_hash = excluded.lookup_hash, last_used_at = null`,
+		[ids.user, lookupHash]
 	);
 
 	await client.query(
@@ -178,8 +196,8 @@ try {
 
 	await client.query('commit');
 	transactionStarted = false;
-	console.log(`Seeded fake demo data for ${demoEmail}`);
-	console.log('Change the demo password immediately outside local evaluation environments.');
+	console.log('Seeded fake demo data for an access-code account.');
+	console.log('Sign in with the DEMO_ACCESS_CODE value supplied to this process.');
 } catch (error) {
 	if (transactionStarted) await client.query('rollback').catch(() => undefined);
 	throw error;

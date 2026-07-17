@@ -1,9 +1,9 @@
 const REDACTED = '[redacted]';
 const SENSITIVE_KEY =
-	/(?:password|passphrase|secret|token|authorization|cookie|credential|api[-_]?key|url)$/i;
+	/(?:password|passphrase|secret|token|authorization|cookie|credential|access[-_]?code|api[-_]?key|url)$/i;
 const URL_TEXT = /https?:\/\/[^\s"'<>]+/gi;
 const BEARER_TEXT = /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi;
-const ASSIGNED_SECRET = /\b(password|token|secret|api[-_]?key)=([^\s&]+)/gi;
+const ASSIGNED_SECRET = /\b(password|token|secret|access[-_]?code|api[-_]?key)=([^\s&]+)/gi;
 
 function redactText(value: string): string {
 	return value

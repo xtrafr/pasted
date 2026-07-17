@@ -15,6 +15,20 @@
       "when": 1784306278611,
       "tag": "0001_allow_account_cascade",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784316862371,
+      "tag": "0002_salty_scarlet_witch",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784324296412,
+      "tag": "0003_flawless_reaper",
+      "breakpoints": true
     }
   ]
 }

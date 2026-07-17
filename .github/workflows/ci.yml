@@ -19,8 +19,7 @@ env:
   DATABASE_POOL_SIZE: 5
   ORIGIN: http://127.0.0.1:4173
   BETTER_AUTH_SECRET: ci-only-secret-with-at-least-32-characters
-  DEMO_USER_EMAIL: demo-ci@example.com
-  DEMO_USER_PASSWORD: ci-demo-password-change-me
+  DEMO_ACCESS_CODE: PastedCiAccessCode2026Example001
 
 jobs:
   quality:

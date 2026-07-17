@@ -7,6 +7,7 @@ export type ServiceErrorCode =
 	| 'conflict'
 	| 'duplicate_link'
 	| 'invalid_relation'
+	| 'rate_limited'
 	| 'database_error';
 
 export interface ValidationIssue {
