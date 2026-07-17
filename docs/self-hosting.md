@@ -23,11 +23,13 @@ POSTGRES_PASSWORD=use-a-long-database-password
 ORIGIN=https://links.example.net
 BODY_SIZE_LIMIT=64M
 BETTER_AUTH_SECRET=replace-with-at-least-32-high-entropy-characters
+APP_BIND_ADDRESS=127.0.0.1
 APP_PORT=3000
+TRUSTED_PROXY_IPS=127.0.0.1
 WORKER_ID=metadata-worker-1
 ```
 
-`DATABASE_URL` and the three `POSTGRES_*` values must describe the same database. Percent-encode reserved characters in the URL password. `BODY_SIZE_LIMIT` must remain at least 64 MB if users need to restore the supported 50 MB JSON backups. Generate the authentication secret with a cryptographically secure password manager or secret generator. Do not commit `.env`.
+`DATABASE_URL` and the three `POSTGRES_*` values must describe the same database. Percent-encode reserved characters in the URL password. `BODY_SIZE_LIMIT` must remain at least 64 MB if users need to restore the supported 50 MB JSON backups. Generate the authentication secret with a cryptographically secure password manager or secret generator. `APP_BIND_ADDRESS` defaults to `127.0.0.1` so the published app port is reachable only from the Docker host. Do not commit `.env`.
 
 GitHub login is optional. Set both `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`, then configure the provider callback for your public origin. Leave both empty to keep only email and password login.
 
@@ -42,9 +44,23 @@ docker compose logs migrate
 docker compose logs app worker
 ```
 
-The app is available on `APP_PORT`, which defaults to port 3000. Its health check requests `/api/health`, which verifies a database query without exposing database details. PostgreSQL has its own `pg_isready` check. The worker health check verifies that its exact `WORKER_ID` has written a recent database heartbeat. Neither application process can start until migrations complete successfully.
+The app is available on `APP_PORT`, which defaults to port 3000, at `APP_BIND_ADDRESS`, which defaults to `127.0.0.1`. Its health check requests `/api/health`, which verifies a database query without exposing database details. PostgreSQL has its own `pg_isready` check. The worker health check verifies that its exact `WORKER_ID` has written a recent database heartbeat. Neither application process can start until migrations complete successfully.
 
-Put an HTTPS reverse proxy in front of the app. Forward the original host and protocol, restrict request body sizes at the proxy, and keep PostgreSQL unexposed. `ORIGIN` must exactly match the browser-facing origin.
+Put an HTTPS reverse proxy in front of the app. Keep the app bound to loopback or another network that clients cannot reach directly. `ORIGIN` must exactly match the browser-facing origin. Better Auth uses this fixed value and does not trust forwarded host or protocol headers.
+
+The proxy must replace any inbound `X-Forwarded-For` header with a value it constructs from its own connection data. Never append to an untrusted client-provided value. Set `TRUSTED_PROXY_IPS` to a comma-separated list of the exact reverse proxy IP addresses or CIDR ranges. When several trusted proxies are present, Better Auth walks the forwarded chain from right to left and uses the first address outside that list as the client identity for authentication rate limits. Avoid broad private ranges that could also include clients.
+
+For example, a single Nginx proxy should use `$remote_addr` rather than `$proxy_add_x_forwarded_for`:
+
+```nginx
+location / {
+    proxy_pass http://127.0.0.1:3000;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $remote_addr;
+}
+```
+
+If the reverse proxy runs in another container, bind the app only to a private network shared with that proxy instead of publishing it publicly. Use the proxy address visible in the trusted forwarded chain, not an arbitrary private subnet.
 
 ## Optional fake demo account
 
@@ -113,6 +129,7 @@ Each worker replica needs a unique `WORKER_ID`. The Compose default is `metadata
 ## Security checklist
 
 - Terminate HTTPS and enable HSTS at the reverse proxy.
+- Keep the application origin inaccessible to clients and overwrite `X-Forwarded-For` at the proxy.
 - Use unique database and authentication secrets.
 - Keep the database on the private Compose network.
 - Apply operating system, Docker, Node image, and PostgreSQL updates.

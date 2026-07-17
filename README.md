@@ -109,15 +109,17 @@ Production setup, upgrades, backups, and reverse proxy notes are in [the self-ho
 | `BODY_SIZE_LIMIT`      | No          | Adapter request cap, default `64M` in Compose               |
 | `ORIGIN`               | Production  | Public application origin, with scheme and port when needed |
 | `BETTER_AUTH_SECRET`   | Production  | High-entropy Better Auth secret, at least 32 characters     |
+| `TRUSTED_PROXY_IPS`    | No          | Comma-separated exact proxy IP addresses or CIDR ranges     |
 | `GITHUB_CLIENT_ID`     | No          | Enables GitHub sign-in when paired with the client secret   |
 | `GITHUB_CLIENT_SECRET` | No          | GitHub OAuth client secret                                  |
 | `LOG_LEVEL`            | No          | Pino log level, default `info`                              |
 | `WORKER_ID`            | No          | Stable metadata worker identity and health check key        |
+| `APP_BIND_ADDRESS`     | Docker only | Published app address, default `127.0.0.1`                  |
 | `APP_PORT`             | Docker only | Host port mapped to the application, default `3000`         |
 | `DEMO_USER_EMAIL`      | Seed only   | Demo account email, default `demo@example.com`              |
 | `DEMO_USER_PASSWORD`   | Seed only   | Demo password, minimum 12 characters                        |
 
-The local fallback secret is for development only. Production startup rejects a missing database URL, origin, or sufficiently long auth secret.
+The local fallback secret is for development only. Production startup rejects a missing database URL, origin, or sufficiently long auth secret. Compose publishes the app on loopback by default. For a reverse proxy deployment, keep the application origin unreachable by clients and make the proxy overwrite `X-Forwarded-For`; see the self-hosting guide for the full trust model.
 
 ## Development
 
@@ -156,7 +158,7 @@ Read [the architecture guide](docs/architecture.md), [API reference](docs/api.md
 - Import files are analyzed in the browser and are not retained by the server.
 - Likely credentials, sensitive query parameters, and common token shapes are flagged and masked during review.
 - Metadata requests accept only HTTP and HTTPS on ports 80 and 443. Every DNS result and redirect target is checked before a connection is pinned to an approved public IP.
-- Remote HTML is parsed as data. JavaScript is never executed, response sizes and types are bounded, and remote images are verified by file signature.
+- Remote HTML is parsed as data. JavaScript is never executed, response sizes and types are bounded, and remote images are verified by file signature, dimensions, and frame count.
 - Application and worker logs redact URL and secret-bearing fields.
 - Public share tokens contain 256 bits of randomness. Only their SHA-256 hashes are stored.
 

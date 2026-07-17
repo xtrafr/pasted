@@ -28,7 +28,9 @@ Authentication rate limits are stored in PostgreSQL:
 | Email registration     | 5 requests per 5 minutes   |
 | Password reset request | 3 requests per 5 minutes   |
 
-The configured `ORIGIN` is the only trusted origin passed to Better Auth. `/api/v1` uses the same session cookie as the web interface and does not add permissive CORS headers. SvelteKit form and origin handling and Better Auth's cookie policy provide the framework-level CSRF boundary. Deploy the application on HTTPS and set `ORIGIN` to the exact public origin so production cookie and origin checks receive correct values.
+The configured `ORIGIN` is the only trusted origin passed to Better Auth. Better Auth does not trust `X-Forwarded-Host` or `X-Forwarded-Proto`; it uses the fixed configured origin. `/api/v1` uses the same session cookie as the web interface and does not add permissive CORS headers. SvelteKit form and origin handling and Better Auth's cookie policy provide the framework-level CSRF boundary. Deploy the application on HTTPS and set `ORIGIN` to the exact public origin so production cookie and origin checks receive correct values.
+
+Authentication rate limits use `X-Forwarded-For` only when the application is protected behind a reverse proxy. The Compose app port binds to `127.0.0.1` by default. Operators must keep the origin unreachable from untrusted clients, configure the exact proxy IP addresses or CIDR ranges in `TRUSTED_PROXY_IPS`, and make the edge proxy overwrite rather than append any inbound `X-Forwarded-For` value. This prevents a client from choosing its own rate-limit identity. Multi-proxy chains are evaluated from right to left until the first untrusted client address.
 
 Production startup requires `DATABASE_URL`, `ORIGIN`, and a `BETTER_AUTH_SECRET` of at least 32 characters. Generate the secret with a cryptographically secure tool. Do not use the local fallback secret in any shared environment.
 
@@ -111,7 +113,9 @@ It sends no browser cookies, authorization header, referrer, or user-supplied he
 
 HTML responses must declare `text/html` or `application/xhtml+xml` and are limited to 1 MiB. Favicon responses are limited to 256 KiB and previews to 2 MiB. Bodies are counted while streaming and a declared oversized `Content-Length` is rejected.
 
-Images must declare an image content type and also pass file signature detection. Accepted formats are PNG, JPEG, WebP, GIF, AVIF, and common ICO variants. SVG is not accepted. This prevents an HTML or script body from being stored merely because its header claims to be an image.
+Fetched images must be static PNG, JPEG, GIF, WebP, or ICO files whose signature matches their content. Header-level inspection rejects malformed images, animation, favicon canvases above 1024 by 1024 or 1,048,576 pixels, and preview canvases above 4096 by 4096 or 12,000,000 pixels. SVG and formats without bounded local dimension and frame inspection are rejected.
+
+Images must declare an image content type and also pass file signature detection. Accepted formats are static PNG, JPEG, WebP, GIF, and common ICO variants. SVG and AVIF are not accepted. This prevents an HTML or script body from being stored merely because its header claims to be an image.
 
 ### Parsing and persistence
 

@@ -21,6 +21,15 @@ export const auth = betterAuth({
 	baseURL: runtimeConfig.origin,
 	secret: runtimeConfig.authSecret,
 	trustedOrigins: [runtimeConfig.origin],
+	advanced: {
+		trustedProxyHeaders: false,
+		ipAddress: {
+			ipAddressHeaders: ['x-forwarded-for'],
+			...(runtimeConfig.trustedProxyIps.length > 0
+				? { trustedProxies: [...runtimeConfig.trustedProxyIps] }
+				: {})
+		}
+	},
 	database: drizzleAdapter(db, { provider: 'pg', schema }),
 	emailAndPassword: {
 		enabled: true,

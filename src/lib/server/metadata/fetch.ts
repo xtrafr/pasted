@@ -1,5 +1,6 @@
 import { fileTypeFromBuffer } from 'file-type';
 import { safeFetchBuffer, type SafeFetchOptions } from '$lib/server/security/safe-http';
+import { assertMetadataImageSafe } from './image-safety';
 import { parseLinkMetadata, type ParsedLinkMetadata } from './parse';
 
 const allowedImageTypes = new Set([
@@ -7,7 +8,6 @@ const allowedImageTypes = new Set([
 	'image/jpeg',
 	'image/webp',
 	'image/gif',
-	'image/avif',
 	'image/x-icon',
 	'image/vnd.microsoft.icon'
 ]);
@@ -53,7 +53,7 @@ export async function fetchMetadataImage(
 	const response = await safeFetchBuffer(url, {
 		maxBytes: kind === 'favicon' ? 262_144 : 2_097_152,
 		allowedContentTypes: ['image/*'],
-		accept: 'image/avif, image/webp, image/png, image/jpeg, image/gif, image/x-icon',
+		accept: 'image/webp, image/png, image/jpeg, image/gif, image/x-icon',
 		maxRedirects: 3,
 		timeoutMs: 8_000,
 		...options
@@ -62,6 +62,7 @@ export async function fetchMetadataImage(
 	if (!detected || !allowedImageTypes.has(detected.mime) || detected.mime === 'image/svg+xml') {
 		throw new Error('The remote image format is not allowed');
 	}
+	assertMetadataImageSafe(response.body, detected.mime, kind);
 
 	return {
 		bytes: response.body,
