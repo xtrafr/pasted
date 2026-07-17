@@ -40,7 +40,13 @@ export async function apiResponse<T>(
 	} catch (error) {
 		const serviceError = error instanceof ServiceError ? error : toServiceError(error);
 		if (serviceError.status >= 500) {
-			logger.error({ err: error, code: serviceError.code }, 'API request failed');
+			logger.error(
+				{
+					code: serviceError.code,
+					errorType: error instanceof Error ? error.name : typeof error
+				},
+				'API request failed'
+			);
 		}
 
 		return json(
