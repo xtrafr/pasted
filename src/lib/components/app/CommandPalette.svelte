@@ -7,6 +7,8 @@
 		$props();
 
 	let query = $state('');
+	let activeIndex = $state(0);
+	let optionElements: HTMLButtonElement[] = [];
 	const appPath = resolve('/app');
 	const commands = [
 		{ label: 'Show every item', hint: 'G then A', href: appPath, icon: 'all' as const },
@@ -23,11 +25,36 @@
 			icon: 'bell' as const
 		},
 		{ label: 'Import a file', hint: 'I', href: resolve('/app/import'), icon: 'import' as const },
-		{ label: 'Export library', hint: 'E', href: resolve('/app/export'), icon: 'bookmark' as const }
+		{ label: 'Export library', hint: 'E', href: resolve('/app/export'), icon: 'bookmark' as const },
+		{
+			label: 'Manage collections and tags',
+			hint: 'G then O',
+			href: resolve('/app/settings/organization'),
+			icon: 'collection' as const
+		}
 	];
 	const filtered = $derived(
 		commands.filter((command) => command.label.toLowerCase().includes(query.trim().toLowerCase()))
 	);
+	const optionCount = $derived(filtered.length + 1);
+
+	$effect(() => {
+		void query;
+		activeIndex = 0;
+	});
+
+	function handleSearchKeydown(event: KeyboardEvent) {
+		if (event.key === 'ArrowDown') {
+			event.preventDefault();
+			activeIndex = (activeIndex + 1) % optionCount;
+		} else if (event.key === 'ArrowUp') {
+			event.preventDefault();
+			activeIndex = (activeIndex - 1 + optionCount) % optionCount;
+		} else if (event.key === 'Enter') {
+			event.preventDefault();
+			optionElements[activeIndex]?.click();
+		}
+	}
 
 	function navigate(href: string) {
 		open = false;
@@ -46,17 +73,35 @@
 	<label class="command-search">
 		<span class="sr-only">Search commands</span>
 		<AppIcon name="search" />
-		<input bind:value={query} placeholder="Type a command" autocomplete="off" />
+		<input
+			bind:value={query}
+			placeholder="Type a command"
+			autocomplete="off"
+			aria-controls="pasted-command-options"
+			aria-activedescendant={`pasted-command-${activeIndex}`}
+			onkeydown={handleSearchKeydown}
+		/>
 	</label>
-	<div class="commands" role="listbox" aria-label="Commands">
-		<button type="button" role="option" aria-selected="false" onclick={quickAdd}>
+	<div id="pasted-command-options" class="commands" role="listbox" aria-label="Commands">
+		<button
+			bind:this={optionElements[0]}
+			id="pasted-command-0"
+			type="button"
+			role="option"
+			aria-selected={activeIndex === 0}
+			onfocus={() => (activeIndex = 0)}
+			onclick={quickAdd}
+		>
 			<AppIcon name="plus" /><span>Save something new</span><kbd>N</kbd>
 		</button>
-		{#each filtered as command (command.href)}
+		{#each filtered as command, index (command.href)}
 			<button
+				bind:this={optionElements[index + 1]}
+				id={`pasted-command-${index + 1}`}
 				type="button"
 				role="option"
-				aria-selected="false"
+				aria-selected={activeIndex === index + 1}
+				onfocus={() => (activeIndex = index + 1)}
 				onclick={() => navigate(command.href)}
 			>
 				<AppIcon name={command.icon} /><span>{command.label}</span><kbd>{command.hint}</kbd>
@@ -108,7 +153,8 @@
 	}
 
 	.commands button:hover,
-	.commands button:focus-visible {
+	.commands button:focus-visible,
+	.commands button[aria-selected='true'] {
 		background: var(--surface-accent);
 	}
 

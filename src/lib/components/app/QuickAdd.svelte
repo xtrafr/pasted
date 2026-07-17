@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Dialog from '$lib/components/ui/Dialog.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
@@ -17,6 +18,7 @@
 
 	let kind = $state<'link' | 'note' | 'reminder'>('link');
 	let currentTimeZone = $derived(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
+	const dashboardPath = resolve('/app');
 </script>
 
 <Dialog bind:open title="Save something" description="A link, a thought, or a nudge for later.">
@@ -33,7 +35,7 @@
 	</div>
 
 	{#if kind === 'link'}
-		<form method="POST" action="?/createLink">
+		<form method="POST" action={`${dashboardPath}?/createLink`}>
 			<Input label="URL" name="url" type="url" placeholder="https://example.com" required />
 			<Input label="Title" name="title" description="Optional. Metadata can fill this later." />
 			<Textarea label="Personal notes" name="personalNotes" rows={3} />
@@ -41,14 +43,14 @@
 			<Button type="submit" fullWidth>Save link</Button>
 		</form>
 	{:else if kind === 'note'}
-		<form method="POST" action="?/createNote">
+		<form method="POST" action={`${dashboardPath}?/createNote`}>
 			<Input label="Title" name="title" description="Optional" />
 			<Textarea label="Note" name="body" rows={8} required />
 			{@render sharedFields()}
 			<Button type="submit" fullWidth>Save note</Button>
 		</form>
 	{:else}
-		<form method="POST" action="?/createReminder">
+		<form method="POST" action={`${dashboardPath}?/createReminder`}>
 			<Input label="What should you remember?" name="title" required />
 			<Textarea label="Details" name="description" rows={3} />
 			<Input label="Date and time" name="dueAt" type="datetime-local" required />

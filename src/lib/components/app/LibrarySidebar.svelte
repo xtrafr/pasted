@@ -1,6 +1,7 @@
 <script lang="ts">
 	/* eslint-disable svelte/no-navigation-without-resolve */
 	import { resolve } from '$app/paths';
+	import { tick } from 'svelte';
 	import AppIcon from './AppIcon.svelte';
 	import type { LibraryCollection } from './types';
 
@@ -24,14 +25,53 @@
 		{ label: 'Reminders', value: 'reminders', icon: 'bell' as const },
 		{ label: 'Archived', value: 'archived', icon: 'archive' as const }
 	];
+	let panel: HTMLElement;
+	let previousFocus: HTMLElement | null = null;
+	let wasOpen = false;
+
+	$effect(() => {
+		if (open && !wasOpen) {
+			previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+			void tick().then(() =>
+				panel?.querySelector<HTMLButtonElement>('.sidebar-mobile-head button')?.focus()
+			);
+		}
+		if (!open && wasOpen) previousFocus?.focus();
+		wasOpen = open;
+	});
+
+	function handlePanelKeydown(event: KeyboardEvent) {
+		if (!open) return;
+		if (event.key === 'Escape') {
+			event.preventDefault();
+			onClose?.();
+			return;
+		}
+		if (event.key !== 'Tab') return;
+		const focusable = [
+			...panel.querySelectorAll<HTMLElement>('a[href], button:not([disabled])')
+		].filter((element) => element.offsetParent !== null);
+		const first = focusable[0];
+		const last = focusable.at(-1);
+		if (!first || !last) return;
+		if (event.shiftKey && document.activeElement === first) {
+			event.preventDefault();
+			last.focus();
+		} else if (!event.shiftKey && document.activeElement === last) {
+			event.preventDefault();
+			first.focus();
+		}
+	}
 </script>
+
+<svelte:window onkeydown={handlePanelKeydown} />
 
 {#if open}
 	<button class="sidebar-backdrop" type="button" aria-label="Close navigation" onclick={onClose}
 	></button>
 {/if}
 
-<aside class:open class="library-sidebar" aria-label="Library navigation">
+<aside bind:this={panel} class:open class="library-sidebar" aria-label="Library navigation">
 	<div class="sidebar-mobile-head">
 		<strong>Library</strong>
 		<button type="button" aria-label="Close navigation" onclick={onClose}>Close</button>
@@ -83,6 +123,9 @@
 	<div class="sidebar-actions">
 		<a href={resolve('/app/import')}><AppIcon name="import" size={18} /> Import</a>
 		<a href={resolve('/app/export')}><AppIcon name="bookmark" size={18} /> Export</a>
+		<a href={resolve('/app/settings/organization')}
+			><AppIcon name="collection" size={18} /> Collections and tags</a
+		>
 	</div>
 </aside>
 

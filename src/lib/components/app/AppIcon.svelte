@@ -7,16 +7,21 @@
 		| 'check'
 		| 'chevron'
 		| 'collection'
+		| 'copy'
+		| 'edit'
 		| 'grid'
 		| 'import'
 		| 'link'
 		| 'list'
 		| 'menu'
+		| 'more'
 		| 'note'
 		| 'plus'
 		| 'search'
+		| 'share'
 		| 'star'
-		| 'tag';
+		| 'tag'
+		| 'trash';
 
 	let {
 		name,
@@ -50,6 +55,10 @@
 		<path d="m9 5 7 7-7 7" />
 	{:else if name === 'collection'}
 		<path d="M3 7h7l2-3h9v15H3z" />
+	{:else if name === 'copy'}
+		<rect x="8" y="8" width="11" height="11" rx="1" /><path d="M16 8V5H5v11h3" />
+	{:else if name === 'edit'}
+		<path d="M4 20h4l11-11-4-4L4 16zM13.5 6.5l4 4" />
 	{:else if name === 'grid'}
 		<rect x="4" y="4" width="6" height="6" /><rect x="14" y="4" width="6" height="6" />
 		<rect x="4" y="14" width="6" height="6" /><rect x="14" y="14" width="6" height="6" />
@@ -63,15 +72,24 @@
 		<path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" />
 	{:else if name === 'menu'}
 		<path d="M4 7h16M4 12h16M4 17h16" />
+	{:else if name === 'more'}
+		<circle cx="5" cy="12" r="1" fill="currentColor" stroke="none" />
+		<circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+		<circle cx="19" cy="12" r="1" fill="currentColor" stroke="none" />
 	{:else if name === 'note'}
 		<path d="M5 3h10l4 4v14H5zM14 3v5h5M8 13h8M8 17h6" />
 	{:else if name === 'plus'}
 		<path d="M12 5v14M5 12h14" />
 	{:else if name === 'search'}
 		<circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4 4" />
+	{:else if name === 'share'}
+		<circle cx="18" cy="5" r="2.5" /><circle cx="6" cy="12" r="2.5" />
+		<circle cx="18" cy="19" r="2.5" /><path d="m8.2 10.8 7.6-4.5M8.2 13.2l7.6 4.5" />
 	{:else if name === 'star'}
 		<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9z" />
 	{:else if name === 'tag'}
 		<path d="M3 11V4h7l11 11-7 7z" /><circle cx="7.5" cy="8" r="1" />
+	{:else if name === 'trash'}
+		<path d="M4 7h16M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5" />
 	{/if}
 </svg>
