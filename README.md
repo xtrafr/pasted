@@ -13,13 +13,15 @@ Pasted is a self-hosted SvelteKit application backed by PostgreSQL. It includes 
 ## What works
 
 - Save links, Markdown notes, and scheduled reminders.
-- Organize items with collections, tags, favorites, and archives.
+- Organize items with collections, tags, favorites, and archives, with a dedicated screen for creating, editing, and deleting collections and tags.
+- Open Quick Add or the keyboard-driven command palette from every authenticated screen.
 - Search titles, URLs, domains, descriptions, notes, tags, and collections.
 - Filter and sort the library, switch between cards and a compact list, and apply bulk actions.
-- Parse text, WhatsApp exports, nested JSON, CSV or TSV, Markdown, HTML, and Netscape bookmark files.
+- Parse text, WhatsApp exports, nested JSON, selected CSV or TSV columns, Markdown, HTML, and Netscape bookmark files.
 - Review candidates before import, detect duplicates, mask likely secrets, and import in idempotent batches.
-- Fetch link metadata asynchronously with DNS and IP checks, pinned connections, redirect validation, size limits, and per-host pacing.
-- Export all or part of an account as Pasted JSON, simple JSON, CSV, TXT, Markdown, browser bookmarks, or a ZIP backup.
+- Fetch link metadata asynchronously with DNS and IP checks, pinned connections, redirect validation, size limits, and per-host pacing. Cards progressively show status, fetched titles, favicons, and previews.
+- Surface due reminders in the app and optionally send browser notifications while Pasted is open.
+- Export all, current search results, a manual selection, or another supported scope as Pasted JSON, simple JSON, CSV, TXT, Markdown, browser bookmarks, or a ZIP backup.
 - Share one item or collection with a revocable, optional-expiry URL.
 - Run the web process, metadata worker, migrations, and PostgreSQL with Docker Compose.
 
@@ -34,7 +36,7 @@ Normal link-import analysis runs in a Web Worker when the browser supports it. T
 | Text and pasted text | HTTP, HTTPS, and high-confidence bare domains                 |
 | WhatsApp text export | Links only, with an optional message date                     |
 | JSON                 | Strings in nested objects and arrays                          |
-| CSV and TSV          | Text in every cell, including quoted multiline values         |
+| CSV and TSV          | Choose columns, including quoted multiline values             |
 | Markdown             | Inline links, reference links, autolinks, and plain URLs      |
 | HTML                 | Anchor targets and visible text, with active elements ignored |
 | Browser bookmarks    | Netscape bookmark links, folder paths, and dates              |
@@ -44,9 +46,9 @@ See [the import format guide](docs/import-format.md) for normalization, limits, 
 
 ## Exporting
 
-Exports can cover the full account, one collection, one domain, favorites, reminders, a date range, or an explicit selection. Privacy controls can omit personal link notes, source dates, fetched metadata, note bodies, and reminder descriptions.
+Exports can cover the full account, one collection, one domain, favorites, reminders, a date range, the current full-text search, or an explicit dashboard selection. Privacy controls can omit personal link notes, source dates, fetched metadata, note bodies, and reminder descriptions.
 
-The Pasted backup format is versioned and preserves collections, tags, relations, links, notes, reminders, and stored metadata. ZIP backups contain `pasted-backup.json` plus a data-free `README.txt`. Restore validates the backup in the browser and server, then writes the complete account data in one transaction with idempotency protection.
+The Pasted backup format is versioned and preserves collections, tags, relations, links, notes, reminders, and textual metadata. ZIP backups contain `pasted-backup.json` plus a data-free `README.txt`. The browser enforces file and decoded-data limits, while the browser and server both apply strict shape, type, identifier, reference, date, cardinality, and field-bound validation. Restore then writes the complete account data in one transaction with idempotency protection. Favicon and preview image bytes are not embedded in backups; metadata and its validated image assets are fetched again after restore.
 
 ## Quick start
 
@@ -143,7 +145,7 @@ pnpm worker
 
 The application uses SvelteKit 2 and Svelte 5 with strict TypeScript, Drizzle ORM, Better Auth, PostgreSQL, pg-boss, Tailwind CSS 4, Vitest, and Playwright.
 
-The web process handles pages, sessions, owned CRUD services, import sessions, exports, sharing, and the internal `/api/v1` routes. The worker consumes metadata jobs from PostgreSQL, applies outbound request policy, and stores sanitized metadata and validated image bytes. Every content query is scoped to the authenticated user, with composite ownership constraints in the database.
+The web process handles pages, sessions, owned CRUD services, import sessions, exports, sharing, due-reminder presentation, and the internal `/api/v1` routes. The worker consumes metadata jobs from PostgreSQL, applies outbound request policy, and stores sanitized metadata and validated image bytes. Authenticated cards poll bounded metadata status routes while work is pending, then render owner-checked assets. Every content query is scoped to the authenticated user, with composite ownership constraints in the database.
 
 Read [the architecture guide](docs/architecture.md), [API reference](docs/api.md), and [technical decisions](docs/decisions.md) for details.
 

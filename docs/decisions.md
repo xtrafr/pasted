@@ -30,11 +30,11 @@ Only HTTP and HTTPS URLs are accepted. DNS results and the connected address are
 
 ## PostgreSQL stores small fetched media
 
-Favicons and preview images are stored as deduplicated byte arrays with content hashes. This keeps the first self-hosted release operational with one durable service. If media volume grows, a later migration can move bytes to object storage while preserving asset identifiers and ownership rules.
+Favicons and preview images are stored as deduplicated byte arrays with content hashes. This keeps the first self-hosted release operational with one durable service. Account backups preserve permitted textual metadata but exclude these remote image bytes; restored targets are queued so the worker can fetch and validate fresh assets. If media volume grows, a later migration can move bytes to object storage while preserving asset identifiers and ownership rules.
 
 ## Migrations are a deployment gate
 
-Compose starts a one-shot migration container and only starts the app and worker after that container succeeds. CI applies migrations to a clean PostgreSQL 18 service, runs the fake seed, and verifies a worker heartbeat. Rollbacks use a database backup plus the previous application image because generated Drizzle migrations are forward-only operational changes.
+Compose starts a one-shot migration container and only starts the app and worker after that container succeeds. CI applies migrations to a clean PostgreSQL 18 service, runs the fake seed, and verifies a worker heartbeat. The initial schema creates the per-owner unique indexes required by composite foreign keys before adding those constraints, so dependency order is valid on a fresh database. Rollbacks use a database backup plus the previous application image because generated Drizzle migrations are forward-only operational changes.
 
 ## Background jobs run outside the web process
 

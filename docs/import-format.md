@@ -24,11 +24,12 @@ The pipeline then:
 
 1. Measures the UTF-8 input size.
 2. Detects a format, unless the user selected one explicitly.
-3. Runs the registered parser for that format.
-4. Normalizes each extracted URL.
-5. Marks invalid URLs and duplicates.
-6. Detects and masks likely secrets.
-7. Returns review candidates and aggregate counts.
+3. Inspects CSV or TSV headers so the user can choose which columns to scan.
+4. Runs the registered parser for that format.
+5. Normalizes each extracted URL.
+6. Marks invalid URLs and duplicates.
+7. Detects and masks likely secrets.
+8. Returns review candidates and aggregate counts.
 
 Parsing is synchronous inside the worker and makes no network requests. Metadata and redirects are not fetched during analysis.
 
@@ -60,9 +61,9 @@ Property paths such as `$.items[0].url` become local review labels. They are not
 
 ### CSV and TSV
 
-The parser detects comma, semicolon, or tab delimiters. It supports quoted fields, escaped quotes, and line breaks inside quoted fields. Every text cell is scanned. A header named `title`, `name`, or `label` can supply candidate titles.
+The parser detects comma, semicolon, or tab delimiters. It supports quoted fields, escaped quotes, and line breaks inside quoted fields. Before review, the import screen inspects the first row and presents detected header labels, or numbered column labels when there is no header. All columns start selected. Users can select only the columns that may contain links and rerun analysis without sending the source file to the server.
 
-There is no column selection control in the parser API. Large files are protected by row, column, cell, candidate, and total byte limits.
+The browser parser accepts zero-based column indexes through `ParseImportOptions.csvColumns`. Unselected cells are not scanned for links. A header named `title`, `name`, or `label` can still supply candidate titles for links found in another selected column of its row. Large files are protected by row, column, cell, candidate, and total byte limits.
 
 ### Markdown
 
@@ -164,7 +165,7 @@ interface ImportParser {
 }
 ```
 
-A `RawParserResult` contains the parser format, candidates, ignored count, and warnings. Each raw candidate needs a `rawUrl` and may include a title, ISO source date, source label, short excerpt, or collection path.
+`ParserContext` contains the resolved limits and may contain the selected zero-based `csvColumns`. A `RawParserResult` contains the parser format, candidates, ignored count, and warnings. Each raw candidate needs a `rawUrl` and may include a title, ISO source date, source label, short excerpt, or collection path.
 
 To add a format:
 
@@ -194,9 +195,26 @@ A complete backup has this top-level shape:
 		"itemCount": 0,
 		"collectionCount": 0,
 		"tagCount": 0,
-		"selection": {},
-		"filters": {},
-		"privacy": {}
+		"selection": { "kind": "all", "itemIds": [], "query": null },
+		"filters": {
+			"collectionIds": [],
+			"tagIds": [],
+			"tagMatch": "any",
+			"types": [],
+			"domains": [],
+			"favorite": null,
+			"archived": null,
+			"createdFrom": null,
+			"createdTo": null,
+			"reminderStates": []
+		},
+		"privacy": {
+			"includePersonalNotes": true,
+			"includeSourceDates": true,
+			"includeLinkMetadata": true,
+			"includeNoteBodies": true,
+			"includeReminderDescriptions": true
+		}
 	},
 	"data": {
 		"collections": [],
@@ -208,7 +226,7 @@ A complete backup has this top-level shape:
 
 Each item has shared IDs, timestamps, title, description, collection and tag relations, state, favorite, archive, order, and optional source date. A discriminated payload then contains link URL and metadata fields, a note body, or reminder schedule and completion fields.
 
-JSON validation checks the format and version, dates, enum values, UUIDs, unique IDs, manifest counts, URLs, and collection or tag references. Default restore limits are:
+JSON validation rejects unknown object fields and checks the format and version, strict field types and lengths, enum values, UUID shape and uniqueness, manifest counts, HTTP or HTTPS URLs, domain consistency, colors, icons, IANA time zones, ISO timestamps and filter date ordering, collection or tag references, and relation cardinality. Default restore limits are:
 
 | Limit                 |   Value |
 | --------------------- | ------: |
@@ -221,7 +239,9 @@ JSON validation checks the format and version, dates, enum values, UUIDs, unique
 
 A ZIP backup contains only `pasted-backup.json` and `README.txt`. The ZIP reader ignores other names, bounds declared uncompressed sizes, requires the JSON member, and validates the decoded backup.
 
-The server restore endpoint accepts a validated backup object and an idempotency key. Restore runs in one database transaction. Existing collections and tags are reused by exact name; new ones are created and their old IDs are mapped to new account-owned IDs. Items receive new IDs while their collection and tag relationships, content, state, dates, and order are retained. Normalized link targets are reused per account. A repeated idempotency key with the same backup returns the previous summary; reuse with different content is rejected.
+The server restore endpoint accepts a validated backup object and an idempotency key, then repeats the strict structured validation before opening the transaction. Restore runs in one database transaction. Existing collections and tags are reused by exact name; new ones are created and their old IDs are mapped to new account-owned IDs. Items receive new IDs while their collection and tag relationships, content, state, dates, and order are retained. Normalized link targets are reused per account. A repeated idempotency key with the same backup returns the previous summary; reuse with different content is rejected.
+
+Backup JSON preserves textual link metadata when privacy settings include it, but the ZIP does not embed favicon or preview image bytes. Every restored link is queued for metadata refresh. Restored metadata enters the pending state, and the worker fetches fresh text and validated owner-scoped image assets through the normal outbound safety policy.
 
 Privacy exclusions are permanent in the exported artifact. A backup created without note bodies, personal notes, source dates, link metadata, or reminder descriptions cannot reconstruct those fields during restore.
 
@@ -229,8 +249,8 @@ Privacy exclusions are permanent in the exported artifact. A backup created with
 
 - Bare-domain recognition is intentionally conservative and does not cover every valid internationalized hostname shape.
 - WhatsApp date parsing assumes day, month, year ordering used by the supported text exports.
-- CSV scans every column and does not yet expose a per-column picker.
+- CSV column inspection uses the first row for labels. It does not infer semantic column types or automatically choose link columns.
 - Bookmark folder paths are detected, but normal candidate imports do not create the folder tree automatically.
 - Backup restore merges collections and tags by exact name and creates new item IDs. It is not an in-place synchronization protocol.
-- Backup ZIP export contains structured data only. Favicon and preview image bytes are not included.
+- Backup ZIP export contains structured data only. Favicon and preview image bytes are fetched again after restore.
 - Secret detection is heuristic and is not a credential scanner with complete provider coverage.

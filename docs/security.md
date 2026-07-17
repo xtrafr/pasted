@@ -160,7 +160,13 @@ Exports contain sensitive account data by default. The export screen can omit pe
 
 CSV serialization quotes cells and prefixes formula-leading values to reduce spreadsheet formula injection. This protection should remain enabled unless the caller understands the destination. HTML bookmark exports escape titles and URLs.
 
-Backup validation checks version, type shape, unique IDs, references, timestamps, URLs, counts, and cardinality. ZIP reading accepts only the expected JSON and README names and enforces compressed and uncompressed limits. A valid backup can still contain private or malicious-looking plain text, so normal escaped rendering and URL policy remain required after restore.
+Structured backup validation is strict on both the browser and server. It rejects unknown object fields and checks the versioned type shape, field lengths, enum values, UUID shape and uniqueness, references, timestamps, URLs, domains, colors, icons, IANA time zones, counts, and relation cardinality. Browser-side JSON and ZIP reading enforces file, decoded-data, and compressed or uncompressed limits and extracts only the expected JSON and README names. A valid backup can still contain private or malicious-looking plain text, so normal escaped rendering and URL policy remain required after restore.
+
+Pasted backups do not embed remote favicon or preview image bytes. Restore keeps permitted textual metadata, returns targets to the pending state, and queues fresh metadata work only after the database transaction commits. The worker re-fetches text and image bytes through the complete outbound and file-signature policy before authenticated asset routes can serve them.
+
+## Reminder notifications
+
+Due reminders are displayed inside the authenticated dashboard. Browser notifications require an explicit permission choice and are created only by an open Pasted page. Their title and description can appear in the operating system notification surface, so users should enable them only on a trusted device. A bounded local-storage list keyed by reminder ID and due time prevents the page from sending the same due notification repeatedly on that browser.
 
 ## Logging and error handling
 

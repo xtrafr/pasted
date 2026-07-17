@@ -65,6 +65,7 @@ These query parameters apply to `GET /api/v1/items`, `/links`, `/notes`, `/remin
 | Parameter                  | Values                                                                                 |
 | -------------------------- | -------------------------------------------------------------------------------------- |
 | `query`                    | Search text, maximum 300 characters                                                    |
+| `sourceImportId`           | Import session UUID; returns links created by that session                             |
 | `types`                    | Repeated or comma-separated `link`, `note`, `reminder`; only on `/items` and `/search` |
 | `states`                   | Repeated or comma-separated `active`, `read`, `broken`                                 |
 | `reminderStates`           | Repeated or comma-separated `pending`, `completed`                                     |
@@ -86,7 +87,7 @@ Array parameters can be repeated, such as `tagIds=a&tagIds=b`, or comma-separate
 Example:
 
 ```http
-GET /api/v1/items?types=link,note&tagMode=all&tagIds=TAG_ID&sortBy=updatedAt&limit=40
+GET /api/v1/items?sourceImportId=IMPORT_ID&types=link&sortBy=createdAt&limit=40
 ```
 
 ## Content routes
@@ -325,7 +326,9 @@ Batch body:
 }
 ```
 
-The abbreviated manifest above is illustrative; real requests must contain the full validated version 1 manifest described in [Import formats](import-format.md). The endpoint returns `201` and counts for created collections, tags, links, notes, reminders, and total items. Replaying the same key and backup returns the stored summary with `replayed: true`. Using a consumed key for different backup content returns `409`.
+The abbreviated manifest above is illustrative; real requests must contain the full validated version 1 manifest described in [the import format guide](import-format.md). The import reader enforces file and decoded-data limits. Browser and server structured validation reject unknown fields and enforce the versioned shape, identifiers, references, field bounds, dates, URLs, and cardinality limits. The endpoint returns `201` and counts for created collections, tags, links, notes, reminders, and total items. Replaying the same key and backup returns the stored summary with `replayed: true`. Using a consumed key for different backup content returns `409`.
+
+Backup JSON does not carry favicon or preview image bytes. The restore keeps permitted textual metadata, marks each restored link target pending, and queues the normal metadata worker to fetch fresh text and validated image assets.
 
 ## Export route
 
@@ -359,8 +362,9 @@ Scopes and required fields:
 | `reminders`  | None                                                     |
 | `date`       | Optional `createdFrom` and `createdTo` offset timestamps |
 | `manual`     | Non-empty `itemIds`, maximum 10,000                      |
+| `search`     | Non-empty `query`, maximum 300 characters                |
 
-The response sets `Content-Disposition`, `Content-Type`, `Content-Length`, and `X-Pasted-Item-Count`. The server caps a complete account export at 100,000 items.
+Manual scope exports exactly the owned item IDs submitted by the current dashboard selection. Search scope reruns the same owned full-text query used by the library, excludes archived items, and is limited to 10,000 matches. The response sets `Content-Disposition`, `Content-Type`, `Content-Length`, and `X-Pasted-Item-Count`. The server caps a complete account export at 100,000 items.
 
 ## Metadata routes
 
@@ -376,6 +380,8 @@ The `targetId` used here is a link target UUID from a returned link item, not th
 Queue endpoints return `202`. A ready target fetched within the six-hour freshness window returns `queued: false` unless forced. A target already fetching or an existing singleton job also returns a reason instead of adding another job.
 
 Asset responses are private, use a content hash ETag, and set `Cache-Control: private, max-age=86400, immutable`. Ownership is checked before bytes are returned.
+
+While a link is `pending` or `fetching`, the authenticated card UI polls the target status for a bounded period. It replaces the fallback title and status progressively when metadata becomes ready and loads returned favicon or preview URLs only through the owner-checked asset route.
 
 ## Share routes
 
