@@ -1,12 +1,32 @@
-import { drizzle } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
+import { Pool } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from './schema';
-import { env } from '$env/dynamic/private';
+import { runtimeConfig } from '$lib/server/config';
 
-const client = postgres(env.DATABASE_URL ?? 'postgres://pasted:pasted@127.0.0.1:5432/pasted', {
-	max: 10,
-	connect_timeout: 10,
-	idle_timeout: 20
+export const databasePool = new Pool({
+	connectionString: runtimeConfig.databaseUrl,
+	max: runtimeConfig.databasePoolSize,
+	connectionTimeoutMillis: 5_000,
+	idleTimeoutMillis: 20_000,
+	allowExitOnIdle: true
 });
 
-export const db = drizzle(client, { schema });
+databasePool.on('error', (error) => {
+	console.error('PostgreSQL pool error', { message: error.message });
+});
+
+export const db = drizzle(databasePool, { schema });
+
+export async function checkDatabase(): Promise<boolean> {
+	const client = await databasePool.connect();
+	try {
+		await client.query('select 1');
+		return true;
+	} finally {
+		client.release();
+	}
+}
+
+export async function closeDatabase(): Promise<void> {
+	await databasePool.end();
+}
