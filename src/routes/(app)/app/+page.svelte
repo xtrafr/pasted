@@ -217,7 +217,12 @@
 	}
 
 	function searchExportHref(): string {
-		return `${resolve('/app/export')}?search=${encodeURIComponent(data.filters.query)}`;
+		const params = currentFilterParams();
+		params.delete('q');
+		params.delete('sort');
+		params.delete('direction');
+		params.set('search', data.filters.query);
+		return `${resolve('/app/export')}?${params.toString()}`;
 	}
 
 	function clearSearchHistory() {

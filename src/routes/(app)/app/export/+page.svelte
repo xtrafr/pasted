@@ -137,16 +137,20 @@
 			case 'reminders':
 				return data.overview.reminderCount;
 			case 'date':
-				return data.overview.total;
+				return null;
+			case 'search':
+				return null;
 			default:
 				return data.overview.total;
 		}
 	});
 	const estimatedBytes = $derived(
-		Math.max(
-			180,
-			Math.round(estimatedCount * selectedFormat.bytesPerItem * (format === 'zip' ? 0.58 : 1))
-		)
+		estimatedCount === null
+			? null
+			: Math.max(
+					180,
+					Math.round(estimatedCount * selectedFormat.bytesPerItem * (format === 'zip' ? 0.58 : 1))
+				)
 	);
 
 	function humanBytes(bytes: number): string {
@@ -165,6 +169,15 @@
 		return (
 			/filename="([^"]+)"/.exec(disposition)?.[1] ?? `pasted-export${selectedFormat.extension}`
 		);
+	}
+
+	function searchRequestFilters() {
+		const { createdFrom: from, createdTo: to, ...filters } = data.searchFilters;
+		return {
+			...filters,
+			...(from ? { createdFrom: isoBoundary(from) } : {}),
+			...(to ? { createdTo: isoBoundary(to, true) } : {})
+		};
 	}
 
 	async function download() {
@@ -191,7 +204,7 @@
 				body: JSON.stringify({
 					format,
 					scope,
-					...(scope === 'search' ? { query: searchQuery.trim() } : {}),
+					...(scope === 'search' ? { query: searchQuery.trim(), ...searchRequestFilters() } : {}),
 					...(scope === 'collection' ? { collectionId: collectionId || null } : {}),
 					...(scope === 'domain' ? { domain } : {}),
 					...(scope === 'date'
@@ -223,7 +236,7 @@
 			link.remove();
 			setTimeout(() => URL.revokeObjectURL(url), 2_000);
 			progress = 100;
-			successMessage = `${response.headers.get('x-pasted-item-count') ?? estimatedCount} items exported as ${selectedFormat.label}.`;
+			successMessage = `${response.headers.get('x-pasted-item-count') ?? 'Matching'} items exported as ${selectedFormat.label}.`;
 		} catch (error) {
 			errorMessage = error instanceof Error ? error.message : 'The export could not be prepared.';
 		} finally {
@@ -353,7 +366,11 @@
 
 		<aside class="export-summary">
 			<p class="section-number">Ready when you are</p>
-			<div class="summary-count"><strong>{estimatedCount}</strong><span>items</span></div>
+			<div class="summary-count">
+				<strong>{estimatedCount ?? '?'}</strong><span
+					>{estimatedCount === null ? 'counted on download' : 'items'}</span
+				>
+			</div>
 			<dl>
 				<div>
 					<dt>Format</dt>
@@ -361,7 +378,7 @@
 				</div>
 				<div>
 					<dt>Estimated size</dt>
-					<dd>{humanBytes(estimatedBytes)}</dd>
+					<dd>{estimatedBytes === null ? 'Calculated on download' : humanBytes(estimatedBytes)}</dd>
 				</div>
 				<div>
 					<dt>Privacy</dt>

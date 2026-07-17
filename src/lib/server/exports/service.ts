@@ -13,6 +13,7 @@ import {
 } from '$lib/export';
 import { ServiceError, parseInput } from '$lib/server/errors';
 import { listCollections, listItems, listTags } from '$lib/server/services';
+import type { ListItemsInput } from '$lib/server/validation';
 
 type ListedItem = Awaited<ReturnType<typeof listItems>>['items'][number];
 
@@ -40,6 +41,15 @@ const exportRequestSchema = z
 		query: z.string().trim().min(1).max(300).optional(),
 		collectionId: z.string().uuid().nullable().optional(),
 		domain: z.string().trim().max(253).toLowerCase().optional(),
+		types: z
+			.array(z.enum(['link', 'note', 'reminder']))
+			.max(3)
+			.optional(),
+		tagIds: z.array(z.string().uuid()).max(50).optional(),
+		tagMode: z.enum(['any', 'all']).optional(),
+		sourceImportId: z.string().uuid().optional(),
+		favorite: z.boolean().optional(),
+		archived: z.boolean().optional(),
 		createdFrom: z.string().datetime({ offset: true }).optional(),
 		createdTo: z.string().datetime({ offset: true }).optional(),
 		itemIds: z.array(z.string().uuid()).max(10_000).optional(),
@@ -201,6 +211,15 @@ function requestOptions(
 			itemIds: searchItemIds,
 			...(request.query ? { query: request.query } : {})
 		};
+		if (request.collectionId !== undefined) filters.collectionIds = [request.collectionId];
+		if (request.domain) filters.domains = [request.domain];
+		if (request.types) filters.types = request.types;
+		if (request.tagIds) filters.tagIds = request.tagIds;
+		if (request.tagMode) filters.tagMatch = request.tagMode;
+		if (request.favorite !== undefined) filters.favorite = request.favorite;
+		if (request.archived !== undefined) filters.archived = request.archived;
+		if (request.createdFrom) filters.createdFrom = request.createdFrom;
+		if (request.createdTo) filters.createdTo = request.createdTo;
 	}
 	if (request.scope === 'collection') filters.collectionIds = [request.collectionId ?? null];
 	if (request.scope === 'domain' && request.domain) filters.domains = [request.domain];
@@ -221,16 +240,29 @@ function requestOptions(
 	};
 }
 
-async function matchingSearchItemIds(userId: string, query: string): Promise<string[]> {
+async function matchingSearchItemIds(
+	userId: string,
+	request: z.output<typeof exportRequestSchema>
+): Promise<string[]> {
 	const itemIds: string[] = [];
 	let cursor: string | undefined;
 	for (let page = 0; page < 100; page += 1) {
-		const result = await listItems(userId, {
-			query,
-			archived: false,
+		const filters: ListItemsInput = {
+			query: request.query,
+			archived: request.archived ?? false,
 			limit: 100,
 			...(cursor ? { cursor } : {})
-		});
+		};
+		if (request.types) filters.types = request.types;
+		if (request.collectionId !== undefined) filters.collectionId = request.collectionId;
+		if (request.tagIds) filters.tagIds = request.tagIds;
+		if (request.tagMode) filters.tagMode = request.tagMode;
+		if (request.sourceImportId) filters.sourceImportId = request.sourceImportId;
+		if (request.domain) filters.domains = [request.domain];
+		if (request.favorite !== undefined) filters.favorite = request.favorite;
+		if (request.createdFrom) filters.createdFrom = request.createdFrom;
+		if (request.createdTo) filters.createdTo = request.createdTo;
+		const result = await listItems(userId, filters);
 		itemIds.push(...result.items.map((item) => item.id));
 		cursor = result.nextCursor;
 		if (!cursor) return itemIds;
@@ -255,7 +287,7 @@ export async function buildAccountExport(userId: string, input: ExportRequest) {
 	const [source, searchItemIds] = await Promise.all([
 		loadExportSource(userId),
 		request.scope === 'search' && request.query
-			? matchingSearchItemIds(userId, request.query)
+			? matchingSearchItemIds(userId, request)
 			: Promise.resolve([])
 	]);
 	return createExportArtifact(
