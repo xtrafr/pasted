@@ -597,9 +597,9 @@
 				<FileDropzone
 					bind:files
 					accept=".txt,.json,.zip,.csv,.tsv,.md,.markdown,.html,.htm,text/plain,application/json,application/zip,application/x-zip-compressed,text/csv,text/html"
-					maxSize={10 * 1024 * 1024}
+					maxSize={50 * 1024 * 1024}
 					label="Drop a file, chat, or backup"
-					description="Up to 10 MB. It is read locally."
+					description="Imports up to 10 MB, or Pasted backups up to 50 MB. Read locally."
 					onFilesChange={handleFilesChange}
 				/>
 				<div class="or"><span>or paste text</span></div>

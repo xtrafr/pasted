@@ -25,6 +25,7 @@
 		"db:push": "drizzle-kit push",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
+		"db:seed": "node scripts/seed.ts",
 		"db:studio": "drizzle-kit studio",
 		"db:check": "drizzle-kit check"
 	},

@@ -128,7 +128,10 @@ export const listItemsSchema = z
 			.array(z.enum(['active', 'read', 'broken']))
 			.max(3)
 			.optional(),
-		reminderStates: z.array(z.enum(['pending', 'completed'])).max(2).optional(),
+		reminderStates: z
+			.array(z.enum(['pending', 'completed']))
+			.max(2)
+			.optional(),
 		collectionId: nullableCollectionIdSchema.optional(),
 		tagIds: tagIdsSchema.optional(),
 		tagMode: z.enum(['any', 'all']).default('all'),

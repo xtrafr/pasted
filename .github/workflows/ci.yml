@@ -1,0 +1,200 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CI: true
+  NODE_ENV: test
+  DATABASE_URL: postgres://pasted:pasted@127.0.0.1:5432/pasted_test
+  DATABASE_POOL_SIZE: 5
+  ORIGIN: http://127.0.0.1:4173
+  BETTER_AUTH_SECRET: ci-only-secret-with-at-least-32-characters
+  DEMO_USER_EMAIL: demo-ci@example.com
+  DEMO_USER_PASSWORD: ci-demo-password-change-me
+
+jobs:
+  quality:
+    name: Static checks, unit tests, and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: pasted_test
+          POSTGRES_USER: pasted
+          POSTGRES_PASSWORD: pasted
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pasted -d pasted_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v6
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check migration consistency
+        run: pnpm db:check
+
+      - name: Apply migrations
+        run: pnpm db:migrate
+
+      - name: Verify the demo seed
+        run: pnpm db:seed
+
+      - name: Verify the metadata worker heartbeat
+        shell: bash
+        run: |
+          export WORKER_ID=ci-metadata-worker
+          ./node_modules/.bin/tsx src/lib/server/jobs/worker.ts > /tmp/pasted-worker.log 2>&1 &
+          worker_pid=$!
+          cleanup() {
+            kill -TERM "$worker_pid" 2>/dev/null || true
+            for attempt in {1..20}; do
+              if ! kill -0 "$worker_pid" 2>/dev/null; then break; fi
+              sleep 0.25
+            done
+            kill -KILL "$worker_pid" 2>/dev/null || true
+            wait "$worker_pid" 2>/dev/null || true
+            cat /tmp/pasted-worker.log
+          }
+          trap cleanup EXIT
+          node --input-type=module <<'NODE'
+          import { setTimeout } from 'node:timers/promises';
+          import pg from 'pg';
+
+          const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
+          await client.connect();
+          try {
+            let healthy = false;
+            for (let attempt = 0; attempt < 30; attempt += 1) {
+              const result = await client.query(
+                `select 1 from worker_heartbeats
+                 where worker_id = $1
+                   and process_type = 'metadata'
+                   and metadata->>'status' = 'running'
+                   and last_seen_at > now() - interval '30 seconds'`,
+                [process.env.WORKER_ID]
+              );
+              if (result.rowCount === 1) {
+                healthy = true;
+                break;
+              }
+              await setTimeout(500);
+            }
+            if (!healthy) throw new Error('Metadata worker did not publish a current heartbeat');
+          } finally {
+            await client.end();
+          }
+          NODE
+
+      - name: Check formatting and lint rules
+        run: pnpm lint
+
+      - name: Check Svelte and TypeScript
+        run: pnpm check
+
+      - name: Run unit tests
+        run: pnpm test:unit
+
+      - name: Build the production app
+        run: pnpm build
+
+      - name: Build the self-hosting images
+        env:
+          DOCKER_BUILDKIT: 1
+        run: |
+          docker compose config --quiet
+          docker build --target migrate --tag pasted-migrate:ci .
+          docker build --target worker --tag pasted-worker:ci .
+          docker build --target runner --tag pasted-app:ci .
+
+  browser:
+    name: Browser tests
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_DB: pasted_test
+          POSTGRES_USER: pasted
+          POSTGRES_PASSWORD: pasted
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pasted -d pasted_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v6
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Prepare the database
+        run: pnpm db:migrate && pnpm db:seed
+
+      - name: Run browser tests when present
+        shell: bash
+        run: |
+          if find tests src -type f \( -name '*.e2e.ts' -o -name '*.e2e.js' \) -print -quit | grep -q .; then
+            pnpm test:e2e
+          else
+            echo "No Playwright tests are present yet. The browser service is ready."
+          fi
+
+      - name: Upload the Playwright report
+        if: ${{ always() && hashFiles('playwright-report/**') != '' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
