@@ -1,7 +1,7 @@
-import { and, eq } from 'drizzle-orm';
+import { and, eq, or } from 'drizzle-orm';
 import { z } from 'zod';
 import { db } from '$lib/server/db';
-import { linkTargets, mediaAssets } from '$lib/server/db/schema';
+import { links, linkTargets, mediaAssets } from '$lib/server/db/schema';
 import { notFound, parseInput, requireUserId, toServiceError } from '$lib/server/errors';
 import { getMetadataBoss, metadataHostGroup } from './boss';
 import { METADATA_FRESHNESS_MS, METADATA_QUEUE } from './constants';
@@ -44,6 +44,7 @@ export async function getOwnedMetadataStatus(userId: string, targetId: string) {
 				updatedAt: linkTargets.updatedAt
 			})
 			.from(linkTargets)
+			.innerJoin(links, and(eq(links.userId, ownerId), eq(links.targetId, linkTargets.id)))
 			.where(and(eq(linkTargets.userId, ownerId), eq(linkTargets.id, parsedTargetId)))
 			.limit(1);
 		if (!target) throw notFound('Link target');
@@ -81,6 +82,7 @@ export async function enqueueOwnedMetadata(
 				lastFetchedAt: linkTargets.lastFetchedAt
 			})
 			.from(linkTargets)
+			.innerJoin(links, and(eq(links.userId, ownerId), eq(links.targetId, linkTargets.id)))
 			.where(and(eq(linkTargets.userId, ownerId), eq(linkTargets.id, parsed.targetId)))
 			.limit(1);
 		if (!target) throw notFound('Link target');
@@ -180,6 +182,17 @@ export async function getOwnedMetadataAsset(userId: string, assetId: string) {
 				sha256: mediaAssets.sha256
 			})
 			.from(mediaAssets)
+			.innerJoin(
+				linkTargets,
+				and(
+					eq(linkTargets.userId, ownerId),
+					or(
+						eq(linkTargets.faviconAssetId, mediaAssets.id),
+						eq(linkTargets.previewAssetId, mediaAssets.id)
+					)
+				)
+			)
+			.innerJoin(links, and(eq(links.userId, ownerId), eq(links.targetId, linkTargets.id)))
 			.where(and(eq(mediaAssets.userId, ownerId), eq(mediaAssets.id, parsedAssetId)))
 			.limit(1);
 		if (!asset) throw notFound('Metadata asset');

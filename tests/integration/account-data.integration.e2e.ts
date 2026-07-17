@@ -9,6 +9,7 @@ import {
 import { signInRequest } from '../helpers/auth';
 import {
 	inspectTestDatabase,
+	queryTestDatabase,
 	removeTestAccounts,
 	seedTestAccount,
 	type TestAccount
@@ -25,6 +26,7 @@ interface CreatedItem {
 	title: string | null;
 	collectionId: string | null;
 	tags: Array<{ id: string; name: string }>;
+	targetId?: string | null;
 }
 
 interface ImportSnapshot {
@@ -219,6 +221,12 @@ test.describe('authenticated account integration', () => {
 					id: 'fresh-link',
 					originalUrl: 'https://fresh.example.test/imported',
 					title: 'Fresh imported link'
+				},
+				{
+					id: 'privacy-deselected',
+					originalUrl: 'https://deselected.example.test/private-path',
+					title: 'Must never reach server storage',
+					selected: false
 				}
 			]
 		};
@@ -228,6 +236,9 @@ test.describe('authenticated account integration', () => {
 			201
 		);
 		expect(created.idempotency.replayed).toBe(false);
+		expect(created.results.map((result) => result.candidateKey)).not.toContain(
+			'privacy-deselected'
+		);
 		expect(
 			Object.fromEntries(created.results.map((result) => [result.candidateKey, result.state]))
 		).toMatchObject({
@@ -264,6 +275,19 @@ test.describe('authenticated account integration', () => {
 		);
 		expect(batchReplay.idempotency.replayed).toBe(true);
 		expect(batchReplay.progress.imported).toBe(1);
+
+		const [deselectedStorage] = await queryTestDatabase<{
+			import_results: string;
+			link_targets: string;
+		}>(
+			`select
+				(select count(*) from import_results
+				 where user_id = $1 and original_url like '%deselected.example.test%')::text as import_results,
+				(select count(*) from link_targets
+				 where user_id = $1 and normalized_url like '%deselected.example.test%')::text as link_targets`,
+			[accountA.id]
+		);
+		expect(deselectedStorage).toEqual({ import_results: '0', link_targets: '0' });
 
 		const jsonExport = await apiA.post('/api/v1/exports', {
 			data: { format: 'pasted-json', scope: 'all' }
@@ -341,5 +365,96 @@ test.describe('authenticated account integration', () => {
 			await apiA.get('/api/v1/items?limit=100')
 		);
 		expect(sourceItems.items).toHaveLength(4);
+	});
+
+	test('removes orphan metadata while retaining live shared targets and assets', async () => {
+		const sharedUrl = 'https://metadata-privacy.example.test/shared';
+		const first = await dataFrom<CreatedItem>(
+			await apiA.post('/api/v1/links', {
+				data: { originalUrl: sharedUrl, title: 'Shared target first link' }
+			}),
+			201
+		);
+		const second = await dataFrom<CreatedItem>(
+			await apiA.post('/api/v1/links', {
+				data: {
+					originalUrl: sharedUrl,
+					title: 'Shared target second link',
+					allowDuplicate: true
+				}
+			}),
+			201
+		);
+		const other = await dataFrom<CreatedItem>(
+			await apiA.post('/api/v1/links', {
+				data: {
+					originalUrl: 'https://metadata-privacy.example.test/other',
+					title: 'Other target sharing one asset'
+				}
+			}),
+			201
+		);
+		expect(first.targetId).toBeTruthy();
+		expect(second.targetId).toBe(first.targetId);
+		expect(other.targetId).toBeTruthy();
+
+		const [uniqueAsset] = await queryTestDatabase<{ id: string }>(
+			`insert into media_assets (user_id, kind, sha256, mime_type, bytes, size_bytes)
+			 values ($1, 'favicon', $2, 'image/png', $3, $4)
+			 returning id`,
+			[accountA.id, `unique-${first.id}`, Buffer.from('unique-fake-image'), 17]
+		);
+		const [sharedAsset] = await queryTestDatabase<{ id: string }>(
+			`insert into media_assets (user_id, kind, sha256, mime_type, bytes, size_bytes)
+			 values ($1, 'preview', $2, 'image/png', $3, $4)
+			 returning id`,
+			[accountA.id, `shared-${first.id}`, Buffer.from('shared-fake-image'), 17]
+		);
+		if (!uniqueAsset || !sharedAsset || !first.targetId || !other.targetId) {
+			throw new Error('Metadata privacy test fixtures were not created');
+		}
+		await queryTestDatabase(
+			`update link_targets
+			 set favicon_asset_id = $1, preview_asset_id = $2
+			 where user_id = $3 and id = $4`,
+			[uniqueAsset.id, sharedAsset.id, accountA.id, first.targetId]
+		);
+		await queryTestDatabase(
+			`update link_targets
+			 set preview_asset_id = $1
+			 where user_id = $2 and id = $3`,
+			[sharedAsset.id, accountA.id, other.targetId]
+		);
+
+		expect((await apiA.get(`/api/v1/metadata/${first.targetId}`)).status()).toBe(200);
+		expect((await apiA.get(`/api/v1/metadata/assets/${uniqueAsset.id}`)).status()).toBe(200);
+		expect((await apiA.delete(`/api/v1/links/${first.id}`)).status()).toBe(204);
+		expect((await apiA.get(`/api/v1/metadata/${first.targetId}`)).status()).toBe(200);
+		expect((await apiA.get(`/api/v1/metadata/assets/${uniqueAsset.id}`)).status()).toBe(200);
+
+		expect((await apiA.delete(`/api/v1/links/${second.id}`)).status()).toBe(204);
+		expect((await apiA.get(`/api/v1/metadata/${first.targetId}`)).status()).toBe(404);
+		expect((await apiA.get(`/api/v1/metadata/assets/${uniqueAsset.id}`)).status()).toBe(404);
+		expect((await apiA.get(`/api/v1/metadata/assets/${sharedAsset.id}`)).status()).toBe(200);
+
+		const [afterLastSharedLink] = await queryTestDatabase<{
+			target_exists: boolean;
+			unique_asset_exists: boolean;
+			shared_asset_exists: boolean;
+		}>(
+			`select
+				exists(select 1 from link_targets where user_id = $1 and id = $2) as target_exists,
+				exists(select 1 from media_assets where user_id = $1 and id = $3) as unique_asset_exists,
+				exists(select 1 from media_assets where user_id = $1 and id = $4) as shared_asset_exists`,
+			[accountA.id, first.targetId, uniqueAsset.id, sharedAsset.id]
+		);
+		expect(afterLastSharedLink).toEqual({
+			target_exists: false,
+			unique_asset_exists: false,
+			shared_asset_exists: true
+		});
+
+		expect((await apiA.delete(`/api/v1/items/${other.id}`)).status()).toBe(204);
+		expect((await apiA.get(`/api/v1/metadata/assets/${sharedAsset.id}`)).status()).toBe(404);
 	});
 });

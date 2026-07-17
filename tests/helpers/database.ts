@@ -1,5 +1,5 @@
 import { hashPassword } from 'better-auth/crypto';
-import pg from 'pg';
+import pg, { type QueryResultRow } from 'pg';
 
 const { Client } = pg;
 
@@ -91,6 +91,20 @@ export async function removeTestAccounts(accounts: readonly TestAccount[]): Prom
 		await client.query('delete from "user" where id = any($1::text[])', [
 			accounts.map((account) => account.id)
 		]);
+	} finally {
+		await client.end();
+	}
+}
+
+export async function queryTestDatabase<Row extends QueryResultRow>(
+	text: string,
+	values: readonly unknown[] = []
+): Promise<Row[]> {
+	const client = new Client({ connectionString: testDatabaseUrl });
+	await client.connect();
+	try {
+		const result = await client.query<Row>(text, [...values]);
+		return result.rows;
 	} finally {
 		await client.end();
 	}

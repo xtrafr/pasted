@@ -156,6 +156,6 @@ export async function deleteLink(userId: string, itemId: string): Promise<void> 
 	return serviceOperation(async () => {
 		const ownerId = scopedUserId(userId);
 		const id = parseInput(idSchema, itemId);
-		await deleteOwnedItem(db, ownerId, id, 'link');
+		await db.transaction((tx) => deleteOwnedItem(tx, ownerId, id, 'link'));
 	});
 }

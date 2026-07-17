@@ -84,6 +84,6 @@ export async function deleteNote(userId: string, itemId: string): Promise<void> 
 	return serviceOperation(async () => {
 		const ownerId = scopedUserId(userId);
 		const id = parseInput(idSchema, itemId);
-		await deleteOwnedItem(db, ownerId, id, 'note');
+		await db.transaction((tx) => deleteOwnedItem(tx, ownerId, id, 'note'));
 	});
 }

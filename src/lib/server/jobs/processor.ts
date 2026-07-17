@@ -1,9 +1,12 @@
 import { createHash } from 'node:crypto';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import type { JobWithMetadata } from 'pg-boss';
 import { fetchLinkMetadata, fetchMetadataImage } from '$lib/server/metadata/fetch';
 import { links, linkTargets, mediaAssets } from '$lib/server/db/schema';
-import { refreshSearchDocuments } from '$lib/server/repositories/items.repository';
+import {
+	cleanupUnreferencedMediaAssets,
+	refreshSearchDocuments
+} from '$lib/server/repositories/items.repository';
 import type { DatabaseExecutor } from '$lib/server/repositories/types';
 import { jobLogger } from './log';
 import { classifyMetadataFailure, metadataNextRetryAt } from './policy';
@@ -78,13 +81,33 @@ async function processImage(
 		image.bytes,
 		image.mimeType
 	);
-	await executor
-		.update(linkTargets)
-		.set({
-			...(kind === 'favicon' ? { faviconAssetId: assetId } : { previewAssetId: assetId }),
-			updatedAt: new Date()
-		})
-		.where(and(eq(linkTargets.userId, job.data.userId), eq(linkTargets.id, job.data.targetId)));
+	let attached = false;
+	try {
+		const rows = await executor
+			.update(linkTargets)
+			.set({
+				...(kind === 'favicon' ? { faviconAssetId: assetId } : { previewAssetId: assetId }),
+				updatedAt: new Date()
+			})
+			.where(
+				and(
+					eq(linkTargets.userId, job.data.userId),
+					eq(linkTargets.id, job.data.targetId),
+					sql`exists (
+						select 1
+						from ${links} as live_link
+						where live_link.user_id = ${job.data.userId}
+							and live_link.target_id = ${linkTargets.id}
+					)`
+				)
+			)
+			.returning({ id: linkTargets.id });
+		attached = rows.length > 0;
+	} finally {
+		if (!attached) {
+			await cleanupUnreferencedMediaAssets(executor, job.data.userId, [assetId]);
+		}
+	}
 }
 
 export async function processMetadataJob(
@@ -98,6 +121,7 @@ export async function processMetadataJob(
 			normalizedUrl: linkTargets.normalizedUrl
 		})
 		.from(linkTargets)
+		.innerJoin(links, and(eq(links.userId, job.data.userId), eq(links.targetId, linkTargets.id)))
 		.where(and(eq(linkTargets.userId, job.data.userId), eq(linkTargets.id, job.data.targetId)))
 		.limit(1);
 	if (!target) return { status: 'missing' };
@@ -144,7 +168,7 @@ export async function processMetadataJob(
 			}
 		}
 
-		await executor
+		const completed = await executor
 			.update(linkTargets)
 			.set({
 				metadataState: 'ready',
@@ -154,8 +178,9 @@ export async function processMetadataJob(
 				nextRetryAt: null,
 				updatedAt: new Date()
 			})
-			.where(and(eq(linkTargets.userId, job.data.userId), eq(linkTargets.id, job.data.targetId)));
-		return { status: 'ready' };
+			.where(and(eq(linkTargets.userId, job.data.userId), eq(linkTargets.id, job.data.targetId)))
+			.returning({ id: linkTargets.id });
+		return completed.length > 0 ? { status: 'ready' } : { status: 'missing' };
 	} catch (error) {
 		const failure = classifyMetadataFailure(error);
 		const terminal = failure.state === 'blocked' || job.retryCount >= job.retryLimit;

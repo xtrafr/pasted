@@ -5,6 +5,7 @@ import {
 	items,
 	links,
 	linkTargets,
+	mediaAssets,
 	notes,
 	reminders,
 	tags,
@@ -169,11 +170,85 @@ export async function deleteOwnedItem(
 	expectedType?: Item['type']
 ): Promise<void> {
 	if (expectedType !== undefined) await requireOwnedItem(executor, userId, itemId, expectedType);
+	const targetRows = await executor
+		.select({ id: links.targetId })
+		.from(links)
+		.where(and(eq(links.userId, userId), eq(links.itemId, itemId)))
+		.for('update');
 	const deleted = await executor
 		.delete(items)
 		.where(and(eq(items.userId, userId), eq(items.id, itemId)))
 		.returning({ id: items.id });
 	if (deleted.length === 0) throw notFound('Item');
+	await cleanupOrphanedLinkTargets(
+		executor,
+		userId,
+		targetRows.map((row) => row.id)
+	);
+}
+
+export async function cleanupOrphanedLinkTargets(
+	executor: DatabaseExecutor,
+	userId: string,
+	targetIds: readonly string[]
+): Promise<void> {
+	const uniqueTargetIds = [...new Set(targetIds)];
+	if (uniqueTargetIds.length === 0) return;
+
+	const deletedTargets = await executor
+		.delete(linkTargets)
+		.where(
+			and(
+				eq(linkTargets.userId, userId),
+				inArray(linkTargets.id, uniqueTargetIds),
+				sql`not exists (
+					select 1
+					from ${links} as remaining_link
+					where remaining_link.user_id = ${userId}
+						and remaining_link.target_id = ${linkTargets.id}
+				)`
+			)
+		)
+		.returning({
+			faviconAssetId: linkTargets.faviconAssetId,
+			previewAssetId: linkTargets.previewAssetId
+		});
+
+	const assetIds = [
+		...new Set(
+			deletedTargets.flatMap((target) =>
+				[target.faviconAssetId, target.previewAssetId].filter(
+					(assetId): assetId is string => assetId !== null
+				)
+			)
+		)
+	];
+	await cleanupUnreferencedMediaAssets(executor, userId, assetIds);
+}
+
+export async function cleanupUnreferencedMediaAssets(
+	executor: DatabaseExecutor,
+	userId: string,
+	assetIds: readonly string[]
+): Promise<void> {
+	const uniqueAssetIds = [...new Set(assetIds)];
+	if (uniqueAssetIds.length === 0) return;
+
+	await executor.delete(mediaAssets).where(
+		and(
+			eq(mediaAssets.userId, userId),
+			inArray(mediaAssets.id, uniqueAssetIds),
+			sql`not exists (
+					select 1
+					from ${linkTargets} as remaining_target
+					where remaining_target.user_id = ${userId}
+						and (
+							remaining_target.favicon_asset_id = ${mediaAssets.id}
+							or remaining_target.preview_asset_id = ${mediaAssets.id}
+						)
+				)`
+		)
+	);
 }
 
 export async function getTagsForItems(
@@ -409,9 +484,19 @@ export async function deleteOwnedItems(
 	userId: string,
 	itemIds: readonly string[]
 ): Promise<number> {
+	const targetRows = await executor
+		.select({ id: links.targetId })
+		.from(links)
+		.where(and(eq(links.userId, userId), inArray(links.itemId, [...itemIds])))
+		.for('update');
 	const deleted = await executor
 		.delete(items)
 		.where(and(eq(items.userId, userId), inArray(items.id, [...itemIds])))
 		.returning({ id: items.id });
+	await cleanupOrphanedLinkTargets(
+		executor,
+		userId,
+		targetRows.map((row) => row.id)
+	);
 	return deleted.length;
 }
