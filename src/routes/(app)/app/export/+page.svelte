@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { resolve } from '$app/paths';
 	import AppIcon from '$lib/components/app/AppIcon.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
@@ -7,11 +8,15 @@
 
 	type Format =
 		'pasted-json' | 'simple-json' | 'csv' | 'txt' | 'markdown' | 'netscape-bookmarks' | 'zip';
-	type Scope = 'all' | 'collection' | 'domain' | 'favorites' | 'reminders' | 'date' | 'manual';
+	type Scope =
+		'all' | 'collection' | 'domain' | 'favorites' | 'reminders' | 'date' | 'manual' | 'search';
 
 	let { data }: { data: PageData } = $props();
 	let format = $state<Format>('pasted-json');
-	let scope = $state<Scope>('all');
+	let scope = $state<Scope>(
+		untrack(() => (data.itemIds.length ? 'manual' : data.searchQuery ? 'search' : 'all'))
+	);
+	let searchQuery = $state(untrack(() => data.searchQuery));
 	let collectionId = $state('');
 	let domain = $state('');
 	let createdFrom = $state('');
@@ -103,6 +108,11 @@
 		},
 		{ value: 'reminders', label: 'Reminders', description: 'Pending and completed reminders.' },
 		{ value: 'date', label: 'Date range', description: 'Items created between two dates.' },
+		{
+			value: 'search',
+			label: 'Search results',
+			description: 'Items matching the same full-text search as the library.'
+		},
 		...(data.itemIds.length
 			? [
 					{
@@ -168,6 +178,10 @@
 			errorMessage = 'Choose a domain first.';
 			return;
 		}
+		if (scope === 'search' && !searchQuery.trim()) {
+			errorMessage = 'Enter a search query first.';
+			return;
+		}
 		downloading = true;
 		progress = 18;
 		try {
@@ -177,6 +191,7 @@
 				body: JSON.stringify({
 					format,
 					scope,
+					...(scope === 'search' ? { query: searchQuery.trim() } : {}),
 					...(scope === 'collection' ? { collectionId: collectionId || null } : {}),
 					...(scope === 'domain' ? { domain } : {}),
 					...(scope === 'date'
@@ -270,6 +285,15 @@
 							>To<input type="date" bind:value={createdTo} /></label
 						>
 					</div>
+				{:else if scope === 'search'}
+					<label class="select-field"
+						>Search query<input
+							type="search"
+							bind:value={searchQuery}
+							maxlength="300"
+							placeholder="Words from titles, notes, tags, or URLs"
+						/></label
+					>
 				{/if}
 			</section>
 
@@ -508,6 +532,7 @@
 		text-transform: uppercase;
 	}
 	select,
+	.select-field input,
 	.date-fields input {
 		width: 100%;
 		min-height: 3.25rem;

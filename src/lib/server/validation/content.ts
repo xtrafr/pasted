@@ -132,6 +132,7 @@ export const listItemsSchema = z
 			.array(z.enum(['pending', 'completed']))
 			.max(2)
 			.optional(),
+		sourceImportId: idSchema.optional(),
 		collectionId: nullableCollectionIdSchema.optional(),
 		tagIds: tagIdsSchema.optional(),
 		tagMode: z.enum(['any', 'all']).default('all'),

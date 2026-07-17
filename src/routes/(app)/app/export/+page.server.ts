@@ -7,6 +7,7 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 	if (!userId) throw new ServiceError('unauthorized', 'Authentication is required', 401);
 	return {
 		overview: await exportOverview(userId),
-		itemIds: url.searchParams.getAll('id').slice(0, 10_000)
+		itemIds: url.searchParams.getAll('id').slice(0, 10_000),
+		searchQuery: url.searchParams.get('search')?.trim().slice(0, 300) ?? ''
 	};
 };

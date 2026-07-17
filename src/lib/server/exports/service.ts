@@ -27,7 +27,17 @@ const exportRequestSchema = z
 			'netscape-bookmarks',
 			'zip'
 		]),
-		scope: z.enum(['all', 'collection', 'domain', 'favorites', 'reminders', 'date', 'manual']),
+		scope: z.enum([
+			'all',
+			'collection',
+			'domain',
+			'favorites',
+			'reminders',
+			'date',
+			'manual',
+			'search'
+		]),
+		query: z.string().trim().min(1).max(300).optional(),
 		collectionId: z.string().uuid().nullable().optional(),
 		domain: z.string().trim().max(253).toLowerCase().optional(),
 		createdFrom: z.string().datetime({ offset: true }).optional(),
@@ -175,10 +185,20 @@ export async function loadExportSource(userId: string): Promise<ExportSourceData
 	};
 }
 
-function requestOptions(request: z.output<typeof exportRequestSchema>): ExportBuildOptions {
+function requestOptions(
+	request: z.output<typeof exportRequestSchema>,
+	searchItemIds: readonly string[] = []
+): ExportBuildOptions {
 	let selection: ExportSelectionInput = { kind: 'all' };
 	const filters: ExportFilterInput = {};
 	if (request.scope === 'manual') selection = { kind: 'manual', itemIds: request.itemIds ?? [] };
+	if (request.scope === 'search') {
+		selection = {
+			kind: 'search',
+			itemIds: searchItemIds,
+			...(request.query ? { query: request.query } : {})
+		};
+	}
 	if (request.scope === 'collection') filters.collectionIds = [request.collectionId ?? null];
 	if (request.scope === 'domain' && request.domain) filters.domains = [request.domain];
 	if (request.scope === 'favorites') filters.favorite = true;
@@ -198,6 +218,23 @@ function requestOptions(request: z.output<typeof exportRequestSchema>): ExportBu
 	};
 }
 
+async function matchingSearchItemIds(userId: string, query: string): Promise<string[]> {
+	const itemIds: string[] = [];
+	let cursor: string | undefined;
+	for (let page = 0; page < 100; page += 1) {
+		const result = await listItems(userId, {
+			query,
+			archived: false,
+			limit: 100,
+			...(cursor ? { cursor } : {})
+		});
+		itemIds.push(...result.items.map((item) => item.id));
+		cursor = result.nextCursor;
+		if (!cursor) return itemIds;
+	}
+	throw new ServiceError('validation_failed', 'Search exports are limited to 10,000 items', 400);
+}
+
 export async function buildAccountExport(userId: string, input: ExportRequest) {
 	const request = parseInput(exportRequestSchema, input);
 	if (request.scope === 'collection' && request.collectionId === undefined) {
@@ -209,8 +246,20 @@ export async function buildAccountExport(userId: string, input: ExportRequest) {
 	if (request.scope === 'manual' && !request.itemIds?.length) {
 		throw new ServiceError('validation_failed', 'Choose at least one item to export', 400);
 	}
-	const source = await loadExportSource(userId);
-	return createExportArtifact(request.format as ExportFormat, source, requestOptions(request));
+	if (request.scope === 'search' && !request.query) {
+		throw new ServiceError('validation_failed', 'Enter a search query to export', 400);
+	}
+	const [source, searchItemIds] = await Promise.all([
+		loadExportSource(userId),
+		request.scope === 'search' && request.query
+			? matchingSearchItemIds(userId, request.query)
+			: Promise.resolve([])
+	]);
+	return createExportArtifact(
+		request.format as ExportFormat,
+		source,
+		requestOptions(request, searchItemIds)
+	);
 }
 
 export async function exportOverview(userId: string) {

@@ -6,6 +6,7 @@ describe('API item query parsing', () => {
 	it('parses filters, repeated lists, sorting, and pagination', () => {
 		const params = new URLSearchParams([
 			['query', 'reading list'],
+			['sourceImportId', 'e398663f-833f-49e4-875c-2a6f68b370cf'],
 			['types', 'link,note'],
 			['tagIds', '34cb251a-8f35-41f1-968e-ddc95f74b0d3'],
 			['tagIds', 'ff759b1d-fd92-4419-8b97-8cc61111e635'],
@@ -19,6 +20,7 @@ describe('API item query parsing', () => {
 
 		expect(parseItemListQuery(params)).toEqual({
 			query: 'reading list',
+			sourceImportId: 'e398663f-833f-49e4-875c-2a6f68b370cf',
 			types: ['link', 'note'],
 			tagIds: ['34cb251a-8f35-41f1-968e-ddc95f74b0d3', 'ff759b1d-fd92-4419-8b97-8cc61111e635'],
 			favorite: true,

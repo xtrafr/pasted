@@ -340,6 +340,7 @@ export async function listOwnedItems(
 	if (input.reminderStates && input.reminderStates.length > 0) {
 		conditions.push(inArray(reminders.state, input.reminderStates));
 	}
+	if (input.sourceImportId) conditions.push(eq(links.sourceImportId, input.sourceImportId));
 	if (input.collectionId === null) conditions.push(isNull(items.collectionId));
 	else if (input.collectionId !== undefined)
 		conditions.push(eq(items.collectionId, input.collectionId));

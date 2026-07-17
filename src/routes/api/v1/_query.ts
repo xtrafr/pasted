@@ -3,6 +3,7 @@ import type { ListItemsInput } from '$lib/server/validation';
 
 const scalarKeys = new Set([
 	'query',
+	'sourceImportId',
 	'collectionId',
 	'tagMode',
 	'favorite',
@@ -65,6 +66,9 @@ function buildListInput(params: URLSearchParams, allowTypes: boolean): ListItems
 	const limitValue = optionalString(params, 'limit');
 	return {
 		...(optionalString(params, 'query') ? { query: optionalString(params, 'query') } : {}),
+		...(optionalString(params, 'sourceImportId')
+			? { sourceImportId: optionalString(params, 'sourceImportId') }
+			: {}),
 		...(allowTypes && optionalList(params, 'types')
 			? { types: optionalList(params, 'types') as ListItemsInput['types'] }
 			: {}),
