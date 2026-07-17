@@ -1,7 +1,7 @@
 <script lang="ts">
 	/* eslint-disable svelte/no-navigation-without-resolve */
 	import type { Snippet } from 'svelte';
-	import { goto, invalidateAll } from '$app/navigation';
+	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import AppIcon from '$lib/components/app/AppIcon.svelte';
 	import CommandPalette from '$lib/components/app/CommandPalette.svelte';
@@ -14,6 +14,7 @@
 
 	let { data, children }: { data: LayoutData; children: Snippet } = $props();
 	let signingOut = $state(false);
+	let signOutError = $state('');
 	let quickAddOpen = $state(false);
 	let commandOpen = $state(false);
 	let shortcutPrefix = '';
@@ -22,10 +23,20 @@
 	const tags = $derived(data.tags as LibraryTag[]);
 
 	async function signOut() {
+		signOutError = '';
 		signingOut = true;
-		await authClient.signOut();
-		await invalidateAll();
-		await goto(resolve('/'));
+		try {
+			const result = await authClient.signOut();
+			if (result.error) {
+				signOutError = 'Pasted could not sign you out. Please try again.';
+				return;
+			}
+			await goto(resolve('/'), { invalidateAll: true });
+		} catch {
+			signOutError = 'Pasted could not sign you out. Check your connection and try again.';
+		} finally {
+			signingOut = false;
+		}
 	}
 
 	function isTyping(target: EventTarget | null) {
@@ -120,17 +131,21 @@
 				id="global-quick-add"
 				class="app-frame__quick"
 				size="small"
+				aria-label="Quick add"
 				onclick={() => (quickAddOpen = true)}
 			>
 				<AppIcon name="plus" size={18} /> <span class="quick-add-label">Quick add</span>
 			</Button>
 			<div class="app-frame__account">
-				<span>{data.user.email}</span>
+				<span>{data.user.name || 'Your library'}</span>
 				<Button variant="quiet" size="small" onclick={signOut} loading={signingOut}>Sign out</Button
 				>
 			</div>
 		</div>
 	</header>
+	{#if signOutError}
+		<p class="app-frame__signout-error" role="alert">{signOutError}</p>
+	{/if}
 	<div id="app-main-content" tabindex="-1">{@render children()}</div>
 </div>
 
@@ -173,6 +188,16 @@
 		align-items: center;
 		gap: var(--space-3-75);
 		font-size: var(--text-body-small);
+	}
+
+	.app-frame__signout-error {
+		margin: 0;
+		border-bottom: var(--border-hairline) solid var(--border-default);
+		background: color-mix(in srgb, var(--surface-accent) 18%, var(--surface-canvas));
+		padding: 0.75rem var(--page-gutter);
+		font-size: var(--text-body-small);
+		font-weight: var(--font-weight-medium);
+		text-align: right;
 	}
 
 	.app-frame__tools,

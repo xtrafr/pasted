@@ -1,5 +1,6 @@
 <script lang="ts">
 	/* eslint-disable svelte/no-navigation-without-resolve */
+	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import AppIcon from '$lib/components/app/AppIcon.svelte';
@@ -329,6 +330,8 @@
 		createdCollections = [...createdCollections, { ...created, itemCount: 0 }];
 		selectedCollection = created.id;
 		collectionDialogOpen = false;
+		await invalidateAll();
+		createdCollections = [];
 	}
 
 	function serverFormat() {

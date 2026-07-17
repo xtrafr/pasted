@@ -408,7 +408,14 @@ export async function listOwnedItems(
 	const conditions: SQL[] = [eq(items.userId, userId), eq(items.archived, input.archived)];
 
 	if (input.query) {
-		conditions.push(sql`${items.searchDocument} @@ websearch_to_tsquery('simple', ${input.query})`);
+		conditions.push(
+			or(
+				sql`${items.searchDocument} @@ websearch_to_tsquery('simple', ${input.query})`,
+				sql`strpos(lower(coalesce(${links.originalUrl}, '')), lower(${input.query})) > 0`,
+				sql`strpos(lower(coalesce(${linkTargets.normalizedUrl}, '')), lower(${input.query})) > 0`,
+				sql`strpos(lower(coalesce(${linkTargets.domain}, '')), lower(${input.query})) > 0`
+			)!
+		);
 	}
 	if (input.types && input.types.length > 0) conditions.push(inArray(items.type, input.types));
 	if (input.states && input.states.length > 0) conditions.push(inArray(items.state, input.states));

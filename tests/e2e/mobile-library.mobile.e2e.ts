@@ -12,8 +12,7 @@ const database = await inspectTestDatabase();
 const account: TestAccount = {
 	id: 'pw_browser_mobile_flow',
 	name: 'Mobile Flow Curator',
-	email: 'pw-mobile-flow@example.test',
-	password: 'fake-mobile-password-2026'
+	accessCode: 'D1234567890123456789012345678904'
 };
 
 test.describe('mobile navigation', () => {
@@ -30,7 +29,7 @@ test.describe('mobile navigation', () => {
 	test('keeps landing and dashboard controls usable on a phone viewport', async ({ page }) => {
 		await page.goto('/');
 		await expect(
-			page.getByRole('heading', { name: /Save it now\. Find it later\./i })
+			page.getByRole('heading', { name: /Keep the useful things\. Find them again\./i })
 		).toBeVisible();
 		const landingWidth = await page.evaluate(() => ({
 			document: document.documentElement.scrollWidth,

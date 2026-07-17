@@ -70,6 +70,63 @@ describe('account export service', () => {
 		});
 	});
 
+	it('uses the normalized URL when exporting a schemeless saved link', async () => {
+		serviceMocks.listItems
+			.mockResolvedValueOnce({
+				items: [
+					{
+						id: '50000000-0000-4000-8000-000000000001',
+						type: 'link',
+						title: 'Draft guide',
+						description: null,
+						collectionId: null,
+						state: 'active',
+						favorite: false,
+						archived: false,
+						sortOrder: 0,
+						sourceDate: null,
+						createdAt: new Date('2026-07-17T10:00:00.000Z'),
+						updatedAt: new Date('2026-07-17T10:00:00.000Z'),
+						originalUrl: 'docs.example.org/guide_(draft)',
+						normalizedUrl: 'https://docs.example.org/guide_(draft)',
+						domain: 'docs.example.org',
+						personalNotes: null,
+						importedTitle: null,
+						sourceType: 'whatsapp',
+						metadataState: null,
+						metadataTitle: null,
+						metadataDescription: null,
+						siteName: null,
+						metadataErrorCode: null,
+						httpStatus: null,
+						lastFetchedAt: null,
+						noteBody: null,
+						reminderDescription: null,
+						dueAt: null,
+						reminderState: null,
+						recurrence: null,
+						timeZone: null,
+						completedAt: null,
+						lastNotifiedAt: null,
+						tags: []
+					}
+				],
+				nextCursor: undefined
+			})
+			.mockResolvedValueOnce({ items: [], nextCursor: undefined });
+
+		const artifact = await buildAccountExport(USER_ID, {
+			format: 'pasted-json',
+			scope: 'all'
+		});
+
+		const backup = JSON.parse(String(artifact.data));
+		expect(backup.data.items[0].link).toMatchObject({
+			originalUrl: 'https://docs.example.org/guide_(draft)',
+			normalizedUrl: 'https://docs.example.org/guide_(draft)'
+		});
+	});
+
 	it('rejects an account export when another page exists at the item limit', async () => {
 		serviceMocks.listItems.mockResolvedValueOnce({
 			items: Array.from({ length: 100_000 }, () => ({})),

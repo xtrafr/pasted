@@ -18,8 +18,7 @@ const fakeWhatsAppPath = fileURLToPath(
 const account: TestAccount = {
 	id: 'pw_browser_library_flow',
 	name: 'Browser Flow Curator',
-	email: 'pw-browser-flow@example.test',
-	password: 'fake-browser-password-2026'
+	accessCode: 'C1234567890123456789012345678903'
 };
 
 test.describe('complete browser library flow', () => {
@@ -38,30 +37,15 @@ test.describe('complete browser library flow', () => {
 		test.slow();
 		await page.emulateMedia({ reducedMotion: 'reduce' });
 
-		await test.step('visit the public landing page with reduced motion', async () => {
+		await test.step('visit the simple public landing page', async () => {
 			await page.goto('/');
 			await expect(
-				page.getByRole('heading', { name: /Save it now\. Find it later\./i })
+				page.getByRole('heading', { name: /Keep the useful things\. Find them again\./i })
 			).toBeVisible();
-			await expect(page.getByRole('link', { name: 'Start your library' }).first()).toBeVisible();
-			const motion = await page
-				.locator('.reveal')
-				.first()
-				.evaluate((element) => {
-					const style = getComputedStyle(element);
-					const duration = style.transitionDuration.split(',')[0]?.trim() ?? '0s';
-					const durationMs = duration.endsWith('ms')
-						? Number.parseFloat(duration)
-						: Number.parseFloat(duration) * 1_000;
-					return {
-						reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
-						durationMs,
-						transform: style.transform
-					};
-				});
-			expect(motion.reduced).toBe(true);
-			expect(motion.durationMs).toBeLessThanOrEqual(0.02);
-			expect(motion.transform).toBe('none');
+			await expect(page.getByRole('link', { name: 'Create your library' })).toBeVisible();
+			await expect(
+				page.getByRole('heading', { name: /Your server\. Your database/i })
+			).toBeVisible();
 		});
 
 		await test.step('sign in with a seeded fake account', async () => {
@@ -89,7 +73,12 @@ test.describe('complete browser library flow', () => {
 			expect(deselectedUrl).toBeTruthy();
 			await deselectedRow.getByRole('checkbox').uncheck();
 			await page.getByPlaceholder('Search results').fill('example');
-			await expect(page.getByText(/example\.(com|org|net)/i).first()).toBeVisible();
+			await expect(
+				page
+					.locator('.result-row:visible')
+					.filter({ hasText: /example\.(com|org|net)/i })
+					.first()
+			).toBeVisible();
 			await page.getByPlaceholder('Search results').fill('');
 
 			await page.getByRole('button', { name: '+ Create a collection' }).click();
@@ -135,8 +124,9 @@ test.describe('complete browser library flow', () => {
 
 			await page.getByLabel('Filter by type').selectOption('link');
 			await expect(page).toHaveURL(/type=link/);
-			await page.getByLabel('Filter by collection').selectOption({ label: 'Imported research' });
-			await expect(page.getByRole('heading', { name: 'Imported research' })).toBeVisible();
+			const collectionFilter = page.getByLabel('Filter by collection');
+			await collectionFilter.selectOption({ label: 'Imported research' });
+			await expect(collectionFilter).toHaveValue(/[0-9a-f-]{36}/i);
 			await expect(page.locator('.item-card--link').first()).toBeVisible();
 		});
 

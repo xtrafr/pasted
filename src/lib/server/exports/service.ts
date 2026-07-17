@@ -90,6 +90,22 @@ function baseItem(item: ListedItem) {
 	};
 }
 
+function portableOriginalUrl(originalUrl: string, normalizedUrl: string): string {
+	try {
+		const parsed = new URL(originalUrl);
+		if (
+			(parsed.protocol === 'http:' || parsed.protocol === 'https:') &&
+			!parsed.username &&
+			!parsed.password
+		) {
+			return originalUrl;
+		}
+	} catch {
+		// Schemeless links are valid Pasted inputs, but portable backups require absolute URLs.
+	}
+	return normalizedUrl;
+}
+
 function exportItem(item: ListedItem): ExportItem {
 	const base = baseItem(item);
 	if (item.type === 'link') {
@@ -100,7 +116,7 @@ function exportItem(item: ListedItem): ExportItem {
 			...base,
 			type: 'link',
 			link: {
-				originalUrl: item.originalUrl,
+				originalUrl: portableOriginalUrl(item.originalUrl, item.normalizedUrl),
 				normalizedUrl: item.normalizedUrl,
 				domain: item.domain,
 				personalNotes: item.personalNotes,

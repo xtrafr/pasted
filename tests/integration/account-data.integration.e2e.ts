@@ -56,14 +56,12 @@ const database = await inspectTestDatabase();
 const accountA: TestAccount = {
 	id: 'pw_integration_account_a',
 	name: 'Integration Account A',
-	email: 'pw-integration-a@example.test',
-	password: 'fake-password-a-2026'
+	accessCode: 'A1234567890123456789012345678901'
 };
 const accountB: TestAccount = {
 	id: 'pw_integration_account_b',
 	name: 'Integration Account B',
-	email: 'pw-integration-b@example.test',
-	password: 'fake-password-b-2026'
+	accessCode: 'B1234567890123456789012345678902'
 };
 
 let apiA: APIRequestContext;
@@ -160,6 +158,11 @@ test.describe('authenticated account integration', () => {
 		expect([link.type, note.type, reminder.type]).toEqual(['link', 'note', 'reminder']);
 		expect(link.collectionId).toBe(collectionId);
 		expect(link.tags).toEqual([expect.objectContaining({ id: tagId })]);
+
+		const partialDomainSearch = await dataFrom<{ items: CreatedItem[] }>(
+			await apiA.get('/api/v1/search?query=example')
+		);
+		expect(partialDomainSearch.items.map((item) => item.id)).toContain(link.id);
 
 		const accountAItems = await dataFrom<{ items: CreatedItem[] }>(
 			await apiA.get('/api/v1/items?limit=100')
@@ -428,11 +431,11 @@ test.describe('authenticated account integration', () => {
 
 		expect((await apiA.get(`/api/v1/metadata/${first.targetId}`)).status()).toBe(200);
 		expect((await apiA.get(`/api/v1/metadata/assets/${uniqueAsset.id}`)).status()).toBe(200);
-		expect((await apiA.delete(`/api/v1/links/${first.id}`)).status()).toBe(204);
+		expect((await apiA.delete(`/api/v1/links/${first.id}`)).status()).toBe(200);
 		expect((await apiA.get(`/api/v1/metadata/${first.targetId}`)).status()).toBe(200);
 		expect((await apiA.get(`/api/v1/metadata/assets/${uniqueAsset.id}`)).status()).toBe(200);
 
-		expect((await apiA.delete(`/api/v1/links/${second.id}`)).status()).toBe(204);
+		expect((await apiA.delete(`/api/v1/links/${second.id}`)).status()).toBe(200);
 		expect((await apiA.get(`/api/v1/metadata/${first.targetId}`)).status()).toBe(404);
 		expect((await apiA.get(`/api/v1/metadata/assets/${uniqueAsset.id}`)).status()).toBe(404);
 		expect((await apiA.get(`/api/v1/metadata/assets/${sharedAsset.id}`)).status()).toBe(200);
@@ -454,7 +457,7 @@ test.describe('authenticated account integration', () => {
 			shared_asset_exists: true
 		});
 
-		expect((await apiA.delete(`/api/v1/items/${other.id}`)).status()).toBe(204);
+		expect((await apiA.delete(`/api/v1/items/${other.id}`)).status()).toBe(200);
 		expect((await apiA.get(`/api/v1/metadata/assets/${sharedAsset.id}`)).status()).toBe(404);
 	});
 });

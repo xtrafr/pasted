@@ -37,6 +37,7 @@
 	const tags = $derived(data.tags as LibraryTag[]);
 	const allSelected = $derived(items.length > 0 && selected.size === items.length);
 	const dueReminders = $derived(data.dueReminders as LibraryItem[]);
+	const searchHistoryKey = $derived(`pasted-search-history-v1:${data.user.id}`);
 	const activeFilterCount = $derived(
 		[
 			data.filters.query,
@@ -93,7 +94,7 @@
 
 	$effect(() => {
 		try {
-			const stored = JSON.parse(localStorage.getItem('pasted-search-history-v1') ?? '[]');
+			const stored = JSON.parse(localStorage.getItem(searchHistoryKey) ?? '[]');
 			recentSearches = Array.isArray(stored)
 				? stored.filter((value): value is string => typeof value === 'string').slice(0, 6)
 				: [];
@@ -106,12 +107,12 @@
 		const query = data.filters.query.trim();
 		if (!query) return;
 		try {
-			const stored = JSON.parse(localStorage.getItem('pasted-search-history-v1') ?? '[]');
+			const stored = JSON.parse(localStorage.getItem(searchHistoryKey) ?? '[]');
 			const history = Array.isArray(stored)
 				? stored.filter((value): value is string => typeof value === 'string')
 				: [];
 			const next = [query, ...history.filter((value) => value !== query)].slice(0, 6);
-			localStorage.setItem('pasted-search-history-v1', JSON.stringify(next));
+			localStorage.setItem(searchHistoryKey, JSON.stringify(next));
 			recentSearches = next;
 		} catch {
 			// Search still works when browser storage is unavailable.
@@ -226,7 +227,7 @@
 	}
 
 	function clearSearchHistory() {
-		localStorage.removeItem('pasted-search-history-v1');
+		localStorage.removeItem(searchHistoryKey);
 		recentSearches = [];
 	}
 </script>
@@ -472,7 +473,7 @@
 			{/if}
 		</div>
 
-		{#if navigating}
+		{#if navigating.to}
 			<div class="skeleton-grid" aria-label="Loading library">
 				{#each skeletonSlots as slot (slot)}<Skeleton
 						height="17rem"

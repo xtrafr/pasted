@@ -1,4 +1,5 @@
 <script lang="ts">
+	/* eslint-disable svelte/no-navigation-without-resolve */
 	import { parseSafeMarkdown, type MarkdownInline } from '$lib/markdown/safe-markdown';
 
 	type RenderInline = MarkdownInline & { match: boolean };
@@ -49,7 +50,6 @@
 	{#each content as inline, inlineIndex (`${inline.text}-${inlineIndex}`)}
 		{#each highlighted(inline) as segment, segmentIndex (`${segment.text}-${segmentIndex}`)}
 			{#if segment.href}
-				<!-- eslint-disable-next-line svelte/no-navigation-without-resolve -->
 				<a
 					href={segment.href}
 					target="_blank"
