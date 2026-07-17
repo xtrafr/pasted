@@ -11,6 +11,7 @@
 	import Input from '$lib/components/ui/Input.svelte';
 	import Progress from '$lib/components/ui/Progress.svelte';
 	import Textarea from '$lib/components/ui/Textarea.svelte';
+	import { parsePastedBackupJson, parsePastedBackupZip, type PastedBackupV1 } from '$lib/export';
 	import { parseImport } from '$lib/import';
 	import type {
 		ImportCandidate,
@@ -55,6 +56,8 @@
 	let analyzing = $state(false);
 	let analysisError = $state('');
 	let result = $state<ImportResult>();
+	let backup = $state.raw<PastedBackupV1>();
+	let restoringBackup = $state(false);
 	let search = $state('');
 	let domain = $state('');
 	let groupByDomain = $state(false);
@@ -105,6 +108,14 @@
 	const selectedCandidates = $derived(
 		result?.candidates.filter((candidate) => selected.has(candidate.id)) ?? []
 	);
+	const backupCounts = $derived.by(() => {
+		const entries = backup?.data.items ?? [];
+		return {
+			links: entries.filter((item) => item.type === 'link').length,
+			notes: entries.filter((item) => item.type === 'note').length,
+			reminders: entries.filter((item) => item.type === 'reminder').length
+		};
+	});
 
 	const formatOptions: Array<{ value: ImportFormat | ''; label: string }> = [
 		{ value: '', label: 'Detect automatically' },
@@ -145,10 +156,28 @@
 		files = next;
 		const file = next[0];
 		if (!file) return;
-		filename = file.name;
-		mimeType = file.type || 'text/plain';
-		content = await file.text();
-		analysisError = '';
+		try {
+			filename = file.name;
+			mimeType = file.type || 'text/plain';
+			if (
+				file.name.toLowerCase().endsWith('.zip') ||
+				file.type === 'application/zip' ||
+				file.type === 'application/x-zip-compressed'
+			) {
+				backup = parsePastedBackupZip(new Uint8Array(await file.arrayBuffer()));
+				content = JSON.stringify(backup);
+				formatOverride = 'json';
+			} else {
+				content = await file.text();
+				backup = undefined;
+			}
+			analysisError = '';
+		} catch (error) {
+			backup = undefined;
+			content = '';
+			analysisError =
+				error instanceof Error ? error.message : 'The backup file could not be opened.';
+		}
 	}
 
 	function initializeReview(parsed: ImportResult) {
@@ -170,6 +199,9 @@
 		}
 		analyzing = true;
 		try {
+			if (/"format"\s*:\s*"pasted-backup"/i.test(content)) {
+				backup = parsePastedBackupJson(content);
+			} else backup = undefined;
 			const parsed = await parseInWorker(
 				{ content, filename, mimeType },
 				{
@@ -178,6 +210,7 @@
 				}
 			);
 			result = parsed;
+			formatOverride = parsed.format;
 			initializeReview(parsed);
 			step = 2;
 		} catch (error) {
@@ -421,6 +454,49 @@
 		}
 	}
 
+	async function restoreBackup() {
+		if (!backup || importing) return;
+		importing = true;
+		restoringBackup = true;
+		importError = '';
+		importProgress = 15;
+		importMessage = 'Validating and restoring the complete account backup in one transaction.';
+		step = 4;
+		if (!idempotencyKey) idempotencyKey = crypto.randomUUID();
+
+		try {
+			const response = await fetch(resolve('/api/v1/imports/restore'), {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ idempotencyKey, backup })
+			});
+			const payload = await response.json();
+			if (!response.ok || !payload.ok) {
+				throw new Error(payload.error?.message ?? 'The full backup could not be restored.');
+			}
+			const restored = payload.data as {
+				sessionId: string;
+				collectionsCreated: number;
+				tagsCreated: number;
+				linksCreated: number;
+				notesCreated: number;
+				remindersCreated: number;
+				itemsCreated: number;
+				replayed: boolean;
+			};
+			importSessionId = restored.sessionId;
+			importedCount = restored.itemsCreated;
+			importProgress = 100;
+			importMessage = `${restored.itemsCreated} items restored: ${restored.linksCreated} links, ${restored.notesCreated} notes, and ${restored.remindersCreated} reminders. ${restored.collectionsCreated} collections and ${restored.tagsCreated} tags were added.`;
+		} catch (error) {
+			importProgress = 15;
+			importError =
+				error instanceof Error ? error.message : 'The full backup could not be restored.';
+		} finally {
+			importing = false;
+		}
+	}
+
 	async function retryFailed() {
 		if (!importSessionId || importing) return;
 		importing = true;
@@ -460,6 +536,8 @@
 	function restart() {
 		step = 1;
 		result = undefined;
+		backup = undefined;
+		restoringBackup = false;
 		content = '';
 		files = [];
 		selected.clear();
@@ -480,7 +558,7 @@
 	<title>Import | Pasted</title>
 	<meta
 		name="description"
-		content="Extract useful links from text, chats, JSON, CSV, Markdown, HTML, and browser bookmarks."
+		content="Extract useful links or restore a complete Pasted JSON or ZIP account backup."
 	/>
 </svelte:head>
 
@@ -518,7 +596,7 @@
 			<div class="source-inputs">
 				<FileDropzone
 					bind:files
-					accept=".txt,.json,.csv,.tsv,.md,.markdown,.html,.htm,text/plain,application/json,text/csv,text/html"
+					accept=".txt,.json,.zip,.csv,.tsv,.md,.markdown,.html,.htm,text/plain,application/json,application/zip,application/x-zip-compressed,text/csv,text/html"
 					maxSize={10 * 1024 * 1024}
 					label="Drop a file, chat, or backup"
 					description="Up to 10 MB. It is read locally."
@@ -553,39 +631,63 @@
 	{:else if step === 2 && result}
 		<section class="detected-stage" aria-labelledby="detected-title">
 			<p class="eyebrow">Step two</p>
-			<h2 id="detected-title">
-				This looks like {formatOptions.find((entry) => entry.value === result?.format)?.label ??
-					result.format}.
-			</h2>
-			<p>
-				{result.detection.reasons.join('. ')}. Detection confidence: {Math.round(
-					result.detection.confidence * 100
-				)}%.
-			</p>
-			<div class="detected-summary">
-				<div><strong>{result.summary.found}</strong><span>links found</span></div>
-				<div><strong>{result.summary.valid}</strong><span>valid</span></div>
-				<div><strong>{result.summary.duplicates}</strong><span>duplicates</span></div>
-				<div><strong>{result.summary.ignored}</strong><span>ignored lines</span></div>
-				<div><strong>{result.summary.withSecrets}</strong><span>need review</span></div>
-			</div>
-			{#if result.warnings.length}
-				<ul class="warnings">
-					{#each result.warnings as warning (warning.code)}<li>{warning.message}</li>{/each}
-				</ul>
+			{#if backup}
+				<h2 id="detected-title">A complete Pasted backup.</h2>
+				<p>
+					Version {backup.version}, exported {new Date(backup.exportedAt).toLocaleDateString()}. The
+					restore is atomic and keeps links, notes, reminders, organization, dates, and states.
+				</p>
+				<div class="detected-summary backup-summary">
+					<div><strong>{backup.manifest.itemCount}</strong><span>items</span></div>
+					<div><strong>{backupCounts.links}</strong><span>links</span></div>
+					<div><strong>{backupCounts.notes}</strong><span>notes</span></div>
+					<div><strong>{backupCounts.reminders}</strong><span>reminders</span></div>
+					<div><strong>{backup.manifest.collectionCount}</strong><span>collections</span></div>
+					<div><strong>{backup.manifest.tagCount}</strong><span>tags</span></div>
+				</div>
+				<p class="restore-note">
+					Existing collections and tags with the same names are reused. Backup items are restored as
+					new private items, and retrying this exact operation cannot create a second copy.
+				</p>
+				<div class="backup-actions">
+					<Button variant="outline" onclick={restart}>Choose another file</Button>
+					<Button onclick={restoreBackup}>Restore full backup</Button>
+				</div>
+			{:else}
+				<h2 id="detected-title">
+					This looks like {formatOptions.find((entry) => entry.value === result?.format)?.label ??
+						result.format}.
+				</h2>
+				<p>
+					{result.detection.reasons.join('. ')}. Detection confidence: {Math.round(
+						result.detection.confidence * 100
+					)}%.
+				</p>
+				<div class="detected-summary">
+					<div><strong>{result.summary.found}</strong><span>links found</span></div>
+					<div><strong>{result.summary.valid}</strong><span>valid</span></div>
+					<div><strong>{result.summary.duplicates}</strong><span>duplicates</span></div>
+					<div><strong>{result.summary.ignored}</strong><span>ignored lines</span></div>
+					<div><strong>{result.summary.withSecrets}</strong><span>need review</span></div>
+				</div>
+				{#if result.warnings.length}
+					<ul class="warnings">
+						{#each result.warnings as warning (warning.code)}<li>{warning.message}</li>{/each}
+					</ul>
+				{/if}
+				<div class="detected-actions">
+					<label
+						>Detected format
+						<select bind:value={formatOverride}>
+							{#each formatOptions.filter((entry) => entry.value) as option (option.value)}<option
+									value={option.value}>{option.label}</option
+								>{/each}
+						</select>
+					</label>
+					<Button variant="outline" onclick={applyFormat} loading={analyzing}>Analyze again</Button>
+					<Button onclick={() => (step = 3)}>Review {result.summary.valid} links</Button>
+				</div>
 			{/if}
-			<div class="detected-actions">
-				<label
-					>Detected format
-					<select bind:value={formatOverride}>
-						{#each formatOptions.filter((entry) => entry.value) as option (option.value)}<option
-								value={option.value}>{option.label}</option
-							>{/each}
-					</select>
-				</label>
-				<Button variant="outline" onclick={applyFormat} loading={analyzing}>Analyze again</Button>
-				<Button onclick={() => (step = 3)}>Review {result.summary.valid} links</Button>
-			</div>
 		</section>
 	{:else if step === 3 && result}
 		<section class="review-stage" aria-labelledby="review-title">
@@ -700,18 +802,29 @@
 					? 'Back where they belong.'
 					: importError
 						? 'A few things need attention.'
-						: 'Saving your selection.'}
+						: restoringBackup
+							? 'Restoring your backup.'
+							: 'Saving your selection.'}
 			</h2>
 			<Progress value={importProgress} label="Import progress" showValue />
 			<p class="progress-message" aria-live="polite">{importError || importMessage}</p>
 			<div class="progress-actions">
-				{#if importing}<Button variant="outline" onclick={cancelImport}>Cancel safely</Button>
+				{#if importing && restoringBackup}<p class="restore-wait" role="status">
+						The atomic restore is running. Keep this page open.
+					</p>
+				{:else if importing}<Button variant="outline" onclick={cancelImport}>Cancel safely</Button>
+				{:else if importError && restoringBackup}<Button variant="outline" onclick={restart}
+						>Start over</Button
+					><Button onclick={restoreBackup}>Retry full restore</Button>
 				{:else if importError}<Button variant="outline" onclick={() => (step = 3)}
 						>Back to review</Button
 					><Button onclick={retryFailed}>Retry failed links</Button>
 				{:else if importProgress === 100}<a
 						class="button-link"
-						href={`${resolve('/app')}?sourceImport=${importSessionId}`}>View imported links</a
+						href={restoringBackup
+							? resolve('/app')
+							: `${resolve('/app')}?sourceImport=${importSessionId}`}
+						>{restoringBackup ? 'View restored library' : 'View imported links'}</a
 					><Button variant="outline" onclick={restart}>Import another file</Button>{/if}
 			</div>
 		</section>
@@ -945,6 +1058,26 @@
 		grid-template-columns: 1fr auto auto;
 		align-items: end;
 		gap: var(--space-3-75);
+	}
+	.backup-summary {
+		grid-template-columns: repeat(6, 1fr);
+	}
+	.restore-note {
+		border-left: 3px solid var(--surface-accent);
+		background: var(--surface-subtle);
+		padding: 1rem;
+		text-align: left;
+	}
+	.backup-actions {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: center;
+		gap: var(--space-3-75);
+	}
+	.restore-wait {
+		margin: 0;
+		color: var(--text-muted);
+		font-size: var(--text-body-small);
 	}
 	.review-stage {
 		display: grid;
