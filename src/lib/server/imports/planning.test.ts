@@ -6,6 +6,7 @@ import {
 	planImportCandidates,
 	planRetry,
 	planReviewSelection,
+	selectedImportPayload,
 	stateAfterBatch
 } from './planning';
 import { createImportSchema } from './validation';
@@ -130,5 +131,29 @@ describe('import planning', () => {
 		});
 
 		expect(hashImportRequest(first)).toBe(hashImportRequest(second));
+	});
+
+	it('discards deselected candidates before persistence and idempotency hashing', () => {
+		const input = createImportSchema.parse({
+			idempotencyKey: 'import:privacy-filter',
+			format: 'text',
+			candidates: [
+				{ id: 'kept', originalUrl: 'https://kept.example/path', selected: true },
+				{
+					id: 'private-deselection',
+					originalUrl: 'https://deselected.example/private-path',
+					selected: false
+				}
+			]
+		});
+		const filtered = selectedImportPayload(input);
+		const withoutDeselection = createImportSchema.parse({
+			...input,
+			candidates: [input.candidates[0]!]
+		});
+
+		expect(filtered.candidates).toEqual([input.candidates[0]]);
+		expect(JSON.stringify(filtered)).not.toContain('deselected.example');
+		expect(hashImportRequest(filtered)).toBe(hashImportRequest(withoutDeselection));
 	});
 });

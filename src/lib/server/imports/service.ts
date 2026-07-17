@@ -36,6 +36,7 @@ import {
 	planImportCandidates,
 	planRetry,
 	planReviewSelection,
+	selectedImportPayload,
 	stateAfterBatch,
 	type ImportCandidateState
 } from './planning';
@@ -247,7 +248,14 @@ async function existingAccountUrls(
 export async function createImportSession(userId: string, input: CreateImportInput) {
 	return serviceOperation(async () => {
 		const ownerId = scopedUserId(userId);
-		const parsed = parseInput(createImportSchema, input);
+		const parsed = selectedImportPayload(parseInput(createImportSchema, input));
+		if (parsed.candidates.length === 0) {
+			throw new ServiceError(
+				'validation_failed',
+				'Choose at least one candidate before starting an import',
+				400
+			);
+		}
 		const requestHash = hashImportRequest(parsed);
 
 		return db.transaction(async (tx) => {

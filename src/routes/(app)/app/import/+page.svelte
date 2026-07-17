@@ -348,16 +348,13 @@
 	function buildCandidates() {
 		if (!result) return [];
 		return result.candidates
-			.filter(
-				(candidate) =>
-					candidate.valid && (candidate.secretFindings.length === 0 || selected.has(candidate.id))
-			)
+			.filter((candidate) => candidate.valid && selected.has(candidate.id))
 			.map((candidate) => ({
 				id: candidate.id,
 				originalUrl: candidate.originalUrl,
 				title: titles.get(candidate.id) || null,
 				...(candidate.sourceDate ? { sourceDate: candidate.sourceDate } : {}),
-				selected: selected.has(candidate.id),
+				selected: true,
 				secretKinds: candidate.secretFindings.map((finding) => finding.kind)
 			}));
 	}

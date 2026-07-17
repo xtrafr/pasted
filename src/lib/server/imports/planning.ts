@@ -251,6 +251,13 @@ export function hashImportRequest(input: ParsedCreateImport): string {
 	return createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
 }
 
+export function selectedImportPayload(input: ParsedCreateImport): ParsedCreateImport {
+	return {
+		...input,
+		candidates: input.candidates.filter((candidate) => candidate.selected !== false)
+	};
+}
+
 export function isDuplicateAllowed(state: ImportCandidateState, errorCode: string | null): boolean {
 	return (
 		state === 'duplicate_file' ||

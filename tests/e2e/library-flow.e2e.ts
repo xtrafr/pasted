@@ -84,6 +84,10 @@ test.describe('complete browser library flow', () => {
 			await expect(page.locator('.selection-total strong')).toHaveText('0');
 			await page.getByRole('button', { name: 'Only new' }).click();
 			await expect(page.locator('.selection-total strong')).not.toHaveText('0');
+			const deselectedRow = page.locator('.result-row').filter({ hasText: 'two.example' });
+			const deselectedUrl = (await deselectedRow.locator('.display-url').textContent())?.trim();
+			expect(deselectedUrl).toBeTruthy();
+			await deselectedRow.getByRole('checkbox').uncheck();
 			await page.getByPlaceholder('Search results').fill('example');
 			await expect(page.getByText(/example\.(com|org|net)/i).first()).toBeVisible();
 			await page.getByPlaceholder('Search results').fill('');
@@ -99,12 +103,22 @@ test.describe('complete browser library flow', () => {
 			await expect(collectionDialog).not.toBeVisible();
 			await expect(page.locator('.import-options select')).toHaveValue(/[0-9a-f-]{36}/i);
 
+			const createRequest = page.waitForRequest(
+				(request) =>
+					request.method() === 'POST' && new URL(request.url()).pathname === '/api/v1/imports'
+			);
 			const batchResponse = page.waitForResponse(
 				(response) =>
 					response.request().method() === 'POST' &&
 					/\/api\/v1\/imports\/[^/]+\/batches$/.test(response.url())
 			);
 			await page.getByRole('button', { name: /Import \d+ links/ }).click();
+			const createPayload = (await createRequest).postDataJSON() as {
+				candidates: Array<{ originalUrl: string }>;
+			};
+			expect(createPayload.candidates.map((candidate) => candidate.originalUrl)).not.toContain(
+				deselectedUrl
+			);
 			expect((await batchResponse).ok()).toBe(true);
 			await expect(page.getByRole('heading', { name: 'Back where they belong.' })).toBeVisible({
 				timeout: 20_000
