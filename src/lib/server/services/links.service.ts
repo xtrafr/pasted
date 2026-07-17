@@ -1,5 +1,6 @@
 import { db } from '$lib/server/db';
 import { duplicateLink, parseInput } from '$lib/server/errors';
+import { enqueueOwnedMetadataBestEffort } from '$lib/server/jobs';
 import {
 	findExistingLinkItem,
 	findOrCreateLinkTarget,
@@ -44,7 +45,7 @@ export async function createLink(userId: string, input: CreateLinkInput) {
 		const parsed = parseInput(createLinkSchema, input);
 		const normalized = normalizeServiceUrl(parsed.originalUrl);
 
-		return db.transaction(async (tx) => {
+		const created = await db.transaction(async (tx) => {
 			await validateRelations(tx, ownerId, parsed.collectionId, parsed.tagIds);
 			if (parsed.sourceImportId) {
 				await requireOwnedImportSession(tx, ownerId, parsed.sourceImportId);
@@ -82,6 +83,8 @@ export async function createLink(userId: string, input: CreateLinkInput) {
 			await refreshSearchDocuments(tx, ownerId, [item.id]);
 			return loadOwnedItem(tx, ownerId, item.id, 'link');
 		});
+		if (created.targetId) await enqueueOwnedMetadataBestEffort(ownerId, [created.targetId]);
+		return created;
 	});
 }
 
@@ -99,7 +102,7 @@ export async function updateLink(userId: string, itemId: string, input: UpdateLi
 		const id = parseInput(idSchema, itemId);
 		const parsed = parseInput(updateLinkSchema, input);
 
-		return db.transaction(async (tx) => {
+		const updated = await db.transaction(async (tx) => {
 			await requireOwnedItem(tx, ownerId, id, 'link');
 			await validateRelations(tx, ownerId, parsed.collectionId, parsed.tagIds);
 			if (parsed.sourceImportId) {
@@ -142,6 +145,10 @@ export async function updateLink(userId: string, itemId: string, input: UpdateLi
 			await refreshSearchDocuments(tx, ownerId, [id]);
 			return loadOwnedItem(tx, ownerId, id, 'link');
 		});
+		if (parsed.originalUrl !== undefined && updated.targetId) {
+			await enqueueOwnedMetadataBestEffort(ownerId, [updated.targetId]);
+		}
+		return updated;
 	});
 }
 

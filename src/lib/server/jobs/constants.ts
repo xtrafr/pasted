@@ -1,0 +1,9 @@
+export const METADATA_QUEUE = 'pasted-metadata-v1';
+export const METADATA_RETRY_LIMIT = 3;
+export const METADATA_RETRY_DELAY_SECONDS = 15;
+export const METADATA_RETRY_DELAY_MAX_SECONDS = 900;
+export const METADATA_JOB_EXPIRE_SECONDS = 45;
+export const METADATA_HEARTBEAT_SECONDS = 20;
+export const METADATA_LOCAL_CONCURRENCY = 4;
+export const METADATA_HOST_INTERVAL_MS = 750;
+export const METADATA_FRESHNESS_MS = 6 * 60 * 60 * 1_000;

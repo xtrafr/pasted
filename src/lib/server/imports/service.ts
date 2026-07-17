@@ -11,6 +11,7 @@ import {
 	parseInput,
 	toServiceError
 } from '$lib/server/errors';
+import { enqueueOwnedMetadataBestEffort } from '$lib/server/jobs';
 import {
 	findExistingLinkItem,
 	findOrCreateLinkTarget,
@@ -477,7 +478,7 @@ async function createImportedLink(
 	candidate: ImportResultRow,
 	options: StoredImportOptions,
 	allowDuplicate: boolean
-): Promise<string> {
+): Promise<{ itemId: string; targetId: string }> {
 	const normalized = normalizeServiceUrl(candidate.originalUrl);
 	const target = await findOrCreateLinkTarget(
 		executor,
@@ -506,7 +507,7 @@ async function createImportedLink(
 	});
 	await replaceItemTags(executor, userId, item.id, options.tagIds);
 	await refreshSearchDocuments(executor, userId, [item.id]);
-	return item.id;
+	return { itemId: item.id, targetId: target.id };
 }
 
 export async function importNextBatch(
@@ -518,8 +519,9 @@ export async function importNextBatch(
 		const ownerId = scopedUserId(userId);
 		const id = parseInput(importIdSchema, importSessionId);
 		const parsed = parseInput(importBatchSchema, input);
+		const targetIdsToQueue: string[] = [];
 
-		return db.transaction(async (tx) => {
+		const snapshot = await db.transaction(async (tx) => {
 			const session = await lockSession(tx, ownerId, id);
 			const options = storedOptions(session.options);
 			if (options.processedBatchKeys.includes(parsed.idempotencyKey)) {
@@ -570,13 +572,14 @@ export async function importNextBatch(
 					candidate.errorCode
 				);
 				try {
-					const itemId = await tx.transaction((candidateTx) =>
+					const created = await tx.transaction((candidateTx) =>
 						createImportedLink(candidateTx, ownerId, id, candidate, options, allowDuplicate)
 					);
+					targetIdsToQueue.push(created.targetId);
 					await tx
 						.update(importResults)
 						.set({
-							itemId,
+							itemId: created.itemId,
 							state: 'imported',
 							errorCode: null,
 							updatedAt: new Date()
@@ -655,6 +658,8 @@ export async function importNextBatch(
 				idempotency: { replayed: false }
 			};
 		});
+		await enqueueOwnedMetadataBestEffort(ownerId, targetIdsToQueue);
+		return snapshot;
 	});
 }
 
