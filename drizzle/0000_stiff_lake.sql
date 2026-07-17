@@ -260,6 +260,12 @@ CREATE TABLE "verification" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
+CREATE UNIQUE INDEX "collections_user_id_uidx" ON "collections" USING btree ("user_id","id");--> statement-breakpoint
+CREATE UNIQUE INDEX "import_sessions_user_id_uidx" ON "import_sessions" USING btree ("user_id","id");--> statement-breakpoint
+CREATE UNIQUE INDEX "items_user_id_uidx" ON "items" USING btree ("user_id","id");--> statement-breakpoint
+CREATE UNIQUE INDEX "link_targets_user_id_uidx" ON "link_targets" USING btree ("user_id","id");--> statement-breakpoint
+CREATE UNIQUE INDEX "media_assets_user_id_uidx" ON "media_assets" USING btree ("user_id","id");--> statement-breakpoint
+CREATE UNIQUE INDEX "tags_user_id_uidx" ON "tags" USING btree ("user_id","id");--> statement-breakpoint
 ALTER TABLE "api_tokens" ADD CONSTRAINT "api_tokens_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "collections" ADD CONSTRAINT "collections_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "export_jobs" ADD CONSTRAINT "export_jobs_user_id_user_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."user"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -288,16 +294,13 @@ ALTER TABLE "session" ADD CONSTRAINT "session_user_id_user_id_fk" FOREIGN KEY ("
 CREATE UNIQUE INDEX "api_tokens_hash_uidx" ON "api_tokens" USING btree ("token_hash");--> statement-breakpoint
 CREATE INDEX "api_tokens_user_idx" ON "api_tokens" USING btree ("user_id","created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "collections_user_name_uidx" ON "collections" USING btree ("user_id","name");--> statement-breakpoint
-CREATE UNIQUE INDEX "collections_user_id_uidx" ON "collections" USING btree ("user_id","id");--> statement-breakpoint
 CREATE INDEX "collections_user_sort_idx" ON "collections" USING btree ("user_id","sort_order");--> statement-breakpoint
 CREATE INDEX "export_jobs_user_created_idx" ON "export_jobs" USING btree ("user_id","created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "import_results_session_candidate_uidx" ON "import_results" USING btree ("import_session_id","candidate_key");--> statement-breakpoint
 CREATE INDEX "import_results_session_state_idx" ON "import_results" USING btree ("import_session_id","state");--> statement-breakpoint
 CREATE UNIQUE INDEX "import_sessions_user_key_uidx" ON "import_sessions" USING btree ("user_id","idempotency_key");--> statement-breakpoint
-CREATE UNIQUE INDEX "import_sessions_user_id_uidx" ON "import_sessions" USING btree ("user_id","id");--> statement-breakpoint
 CREATE INDEX "import_sessions_user_created_idx" ON "import_sessions" USING btree ("user_id","created_at");--> statement-breakpoint
 CREATE INDEX "item_tags_user_tag_idx" ON "item_tags" USING btree ("user_id","tag_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "items_user_id_uidx" ON "items" USING btree ("user_id","id");--> statement-breakpoint
 CREATE INDEX "items_user_created_idx" ON "items" USING btree ("user_id","created_at");--> statement-breakpoint
 CREATE INDEX "items_user_type_idx" ON "items" USING btree ("user_id","type");--> statement-breakpoint
 CREATE INDEX "items_user_collection_idx" ON "items" USING btree ("user_id","collection_id");--> statement-breakpoint
@@ -305,18 +308,15 @@ CREATE INDEX "items_user_favorite_idx" ON "items" USING btree ("user_id","favori
 CREATE INDEX "items_user_archived_idx" ON "items" USING btree ("user_id","archived");--> statement-breakpoint
 CREATE INDEX "items_search_idx" ON "items" USING gin ("search_document");--> statement-breakpoint
 CREATE UNIQUE INDEX "link_targets_user_url_uidx" ON "link_targets" USING btree ("user_id","normalized_url");--> statement-breakpoint
-CREATE UNIQUE INDEX "link_targets_user_id_uidx" ON "link_targets" USING btree ("user_id","id");--> statement-breakpoint
 CREATE INDEX "link_targets_user_domain_idx" ON "link_targets" USING btree ("user_id","domain");--> statement-breakpoint
 CREATE INDEX "link_targets_metadata_state_idx" ON "link_targets" USING btree ("metadata_state","next_retry_at");--> statement-breakpoint
 CREATE INDEX "links_user_target_idx" ON "links" USING btree ("user_id","target_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "media_assets_user_hash_uidx" ON "media_assets" USING btree ("user_id","sha256");--> statement-breakpoint
-CREATE UNIQUE INDEX "media_assets_user_id_uidx" ON "media_assets" USING btree ("user_id","id");--> statement-breakpoint
 CREATE INDEX "media_assets_user_created_idx" ON "media_assets" USING btree ("user_id","created_at");--> statement-breakpoint
 CREATE INDEX "reminders_user_due_idx" ON "reminders" USING btree ("user_id","state","due_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "shares_token_hash_uidx" ON "shares" USING btree ("token_hash");--> statement-breakpoint
 CREATE INDEX "shares_user_idx" ON "shares" USING btree ("user_id","created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "tags_user_name_uidx" ON "tags" USING btree ("user_id","name");--> statement-breakpoint
-CREATE UNIQUE INDEX "tags_user_id_uidx" ON "tags" USING btree ("user_id","id");--> statement-breakpoint
 CREATE INDEX "tags_user_idx" ON "tags" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "account_user_idx" ON "account" USING btree ("user_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "account_provider_uidx" ON "account" USING btree ("provider_id","account_id");--> statement-breakpoint
