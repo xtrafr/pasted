@@ -33,7 +33,6 @@ export async function startMetadataWorker(): Promise<MetadataWorkerHandle> {
 	const workOptions = {
 		includeMetadata: true,
 		localConcurrency: METADATA_LOCAL_CONCURRENCY,
-		localGroupConcurrency: 1,
 		groupConcurrency: 1,
 		pollingIntervalSeconds: 1,
 		notifyPollingIntervalSeconds: 30,
