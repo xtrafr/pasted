@@ -1,4 +1,6 @@
 <script lang="ts">
+	import SafeMarkdown from '$lib/components/ui/SafeMarkdown.svelte';
+
 	interface SharedItem {
 		type: 'link' | 'note' | 'reminder';
 		title: string | null;
@@ -51,7 +53,9 @@
 	{:else if item.type === 'note' && item.note}
 		<h2>{item.title ?? 'Note'}</h2>
 		{#if item.description}<p>{item.description}</p>{/if}
-		<div class="note-body">{item.note.body}</div>
+		<div class="note-body">
+			<SafeMarkdown source={item.note.body} label="Shared note content" />
+		</div>
 	{:else if item.type === 'reminder' && item.reminder}
 		<h2>{item.title ?? 'Reminder'}</h2>
 		{#if item.description ?? item.reminder.description}

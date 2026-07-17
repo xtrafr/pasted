@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 </script>
 
 <section class="dashboard" aria-label="Pasted dashboard preview">
@@ -29,7 +30,7 @@
 				<li><span><i></i>Reading list</span><small>24</small></li>
 				<li><span><i></i>Weekend ideas</span><small>9</small></li>
 			</ul>
-			<button type="button">+ New collection</button>
+			<a class="new-collection" href={resolve('/register')}>+ New collection</a>
 		</aside>
 		<div class="dashboard__main">
 			<div class="dashboard__title">
@@ -236,19 +237,23 @@
 		font-size: 0.65rem;
 	}
 
-	aside button {
+	aside .new-collection {
+		display: block;
 		width: 100%;
 		min-height: 2.75rem;
 		margin-top: 0.75rem;
 		border: 0;
 		border-radius: var(--radius-button);
 		background: transparent;
+		color: inherit;
 		padding: 0.5rem;
 		font-size: 0.7rem;
 		text-align: left;
+		text-decoration: none;
 	}
 
-	aside button:hover {
+	aside .new-collection:hover,
+	aside .new-collection:focus-visible {
 		background: color-mix(in srgb, var(--color-echo-green) 40%, transparent);
 	}
 

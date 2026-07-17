@@ -1,5 +1,7 @@
 <script lang="ts">
+	import { invalidateAll } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import CollectionShareDialog from '$lib/components/app/CollectionShareDialog.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Checkbox from '$lib/components/ui/Checkbox.svelte';
 	import Dialog from '$lib/components/ui/Dialog.svelte';
@@ -88,6 +90,8 @@
 	let deleteTarget = $state<DeleteTarget | null>(null);
 	let deleteError = $state('');
 	let deleteSubmitting = $state(false);
+	let shareDialogOpen = $state(false);
+	let sharingCollection = $state<CollectionRecord | null>(null);
 
 	let toastOpen = $state(false);
 	let toastTone = $state<ToastTone>('success');
@@ -127,6 +131,14 @@
 		toastTitle = title;
 		toastMessage = message;
 		toastOpen = true;
+	}
+
+	async function refreshTaxonomyData() {
+		try {
+			await invalidateAll();
+		} catch {
+			// The local records remain correct and a later navigation will retry the layout load.
+		}
 	}
 
 	async function apiRequest<T>(url: string, method: 'POST' | 'PATCH' | 'DELETE', body?: object) {
@@ -187,6 +199,11 @@
 		collectionDialogOpen = true;
 	}
 
+	function openShareCollection(collection: CollectionRecord) {
+		sharingCollection = collection;
+		shareDialogOpen = true;
+	}
+
 	async function saveCollection(event: SubmitEvent) {
 		event.preventDefault();
 		collectionError = '';
@@ -231,6 +248,7 @@
 					? collections.map((collection) => (collection.id === record.id ? record : collection))
 					: [...collections, record]
 			);
+			await refreshTaxonomyData();
 			collectionDialogOpen = false;
 			notify(
 				'success',
@@ -291,6 +309,7 @@
 			tags = sortTags(
 				current ? tags.map((tag) => (tag.id === record.id ? record : tag)) : [...tags, record]
 			);
+			await refreshTaxonomyData();
 			tagDialogOpen = false;
 			notify('success', current ? 'Tag updated' : 'Tag created', `${record.name} is ready to use.`);
 		} catch (error) {
@@ -318,6 +337,7 @@
 					'DELETE'
 				);
 				collections = collections.filter((collection) => collection.id !== target.id);
+				await refreshTaxonomyData();
 				notify(
 					'success',
 					'Collection deleted',
@@ -331,6 +351,7 @@
 					'DELETE'
 				);
 				tags = tags.filter((tag) => tag.id !== target.id);
+				await refreshTaxonomyData();
 				notify(
 					'success',
 					'Tag deleted',
@@ -421,6 +442,9 @@
 								</ul>
 							</div>
 							<div class="entity-actions" aria-label={`Actions for ${collection.name}`}>
+								<button type="button" onclick={() => openShareCollection(collection)}>
+									Share
+								</button>
 								<button type="button" onclick={() => openEditCollection(collection)}>Edit</button>
 								<button
 									type="button"
@@ -504,6 +528,14 @@
 		</section>
 	</div>
 </main>
+
+{#if sharingCollection}
+	<CollectionShareDialog
+		bind:open={shareDialogOpen}
+		collection={sharingCollection}
+		onMessage={(message) => notify('success', 'Sharing updated', message)}
+	/>
+{/if}
 
 <Dialog
 	bind:open={collectionDialogOpen}

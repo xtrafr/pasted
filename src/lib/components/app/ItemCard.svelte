@@ -3,6 +3,7 @@
 	import { onMount } from 'svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Dialog from '$lib/components/ui/Dialog.svelte';
+	import SafeMarkdown from '$lib/components/ui/SafeMarkdown.svelte';
 	import AppIcon from './AppIcon.svelte';
 	import ItemEditDialog from './ItemEditDialog.svelte';
 	import ItemShareDialog from './ItemShareDialog.svelte';
@@ -221,7 +222,11 @@
 				apiAction(resolve('/api/v1/reminders/[id]/completion', { id: item.id }), 'PUT', {
 					completed: item.reminderState !== 'completed'
 				}),
-			item.reminderState === 'completed' ? 'Reminder reopened.' : 'Reminder completed.'
+			item.reminderState === 'completed'
+				? 'Reminder reopened.'
+				: item.recurrence
+					? 'Reminder moved to its next occurrence.'
+					: 'Reminder completed.'
 		);
 	}
 
@@ -341,7 +346,9 @@
 				{#if part.match}<mark>{part.text}</mark>{:else}{part.text}{/if}
 			{/each}
 		</h2>
-		{#if displayDescription}
+		{#if item.type === 'note' && item.noteBody}
+			<SafeMarkdown source={item.noteBody} {query} compact label="Note content" />
+		{:else if displayDescription}
 			<p class="item-card__description">
 				{#each descriptionParts as part, index (`${part.text}-${index}`)}
 					{#if part.match}<mark>{part.text}</mark>{:else}{part.text}{/if}

@@ -1,7 +1,7 @@
 <script lang="ts">
 	/* eslint-disable svelte/no-navigation-without-resolve */
 	import { resolve } from '$app/paths';
-	import { tick } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import AppIcon from './AppIcon.svelte';
 	import type { LibraryCollection } from './types';
 
@@ -27,17 +27,28 @@
 	];
 	let panel: HTMLElement;
 	let previousFocus: HTMLElement | null = null;
-	let wasOpen = false;
+	let mobileViewport = $state(false);
+	let wasMobileOpen = false;
+	const hiddenOnMobile = $derived(mobileViewport && !open);
+
+	onMount(() => {
+		const media = window.matchMedia('(max-width: 58rem)');
+		const update = () => (mobileViewport = media.matches);
+		update();
+		media.addEventListener('change', update);
+		return () => media.removeEventListener('change', update);
+	});
 
 	$effect(() => {
-		if (open && !wasOpen) {
+		const mobileOpen = mobileViewport && open;
+		if (mobileOpen && !wasMobileOpen) {
 			previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 			void tick().then(() =>
 				panel?.querySelector<HTMLButtonElement>('.sidebar-mobile-head button')?.focus()
 			);
 		}
-		if (!open && wasOpen) previousFocus?.focus();
-		wasOpen = open;
+		if (!mobileOpen && wasMobileOpen) previousFocus?.focus();
+		wasMobileOpen = mobileOpen;
 	});
 
 	function handlePanelKeydown(event: KeyboardEvent) {
@@ -71,7 +82,13 @@
 	></button>
 {/if}
 
-<aside bind:this={panel} class:open class="library-sidebar" aria-label="Library navigation">
+<aside
+	bind:this={panel}
+	class:open
+	class="library-sidebar"
+	aria-label="Library navigation"
+	inert={hiddenOnMobile}
+>
 	<div class="sidebar-mobile-head">
 		<strong>Library</strong>
 		<button type="button" aria-label="Close navigation" onclick={onClose}>Close</button>
@@ -231,11 +248,18 @@
 			width: min(20rem, calc(100vw - 3rem));
 			height: 100dvh;
 			transform: translateX(-105%);
-			transition: transform var(--motion-standard) var(--ease-out);
+			visibility: hidden;
+			pointer-events: none;
+			transition:
+				transform var(--motion-standard) var(--ease-out),
+				visibility 0s linear var(--motion-standard);
 		}
 
 		.library-sidebar.open {
 			transform: translateX(0);
+			visibility: visible;
+			pointer-events: auto;
+			transition-delay: 0s;
 		}
 
 		.sidebar-backdrop {
