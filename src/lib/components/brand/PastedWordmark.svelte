@@ -1,9 +1,8 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import type { Pathname } from '$app/types';
 
 	type Props = {
-		href?: Pathname;
+		href?: '/' | '/app';
 		size?: 'small' | 'medium' | 'large';
 		tone?: 'light' | 'dark';
 		compact?: boolean;
@@ -19,11 +18,15 @@
 		'aria-label': ariaLabel,
 		class: className = ''
 	}: Props = $props();
+
+	const resolvedHref = $derived(
+		href === '/' ? resolve('/') : href === '/app' ? resolve('/app') : undefined
+	);
 </script>
 
 {#if href}
 	<a
-		href={resolve(href)}
+		href={resolvedHref}
 		aria-label={ariaLabel}
 		class={`wordmark wordmark--${compact ? 'small' : size} wordmark--${tone} ${className}`}
 	>
