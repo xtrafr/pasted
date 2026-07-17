@@ -277,7 +277,7 @@ export const links = pgTable(
 			columns: [table.userId, table.sourceImportId],
 			foreignColumns: [importSessions.userId, importSessions.id],
 			name: 'links_import_owner_fk'
-		}).onDelete('restrict')
+		}).onDelete('no action')
 	]
 );
 
