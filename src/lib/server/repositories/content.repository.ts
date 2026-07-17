@@ -119,6 +119,7 @@ export interface ReminderPatch {
 	recurrence?: string | null;
 	timeZone?: string;
 	completedAt?: Date | null;
+	lastNotifiedAt?: Date | null;
 }
 
 export async function insertReminderDetails(

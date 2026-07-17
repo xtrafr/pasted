@@ -1,4 +1,5 @@
 import { db } from '$lib/server/db';
+import { nextReminderOccurrence } from '$lib/reminders/recurrence';
 import { parseInput } from '$lib/server/errors';
 import {
 	insertReminderDetails,
@@ -106,8 +107,32 @@ export async function updateReminder(userId: string, itemId: string, input: Upda
 }
 
 export async function completeReminder(userId: string, itemId: string, completed = true) {
-	return updateReminder(userId, itemId, {
-		reminderState: completed ? 'completed' : 'pending'
+	if (!completed) return updateReminder(userId, itemId, { reminderState: 'pending' });
+	return serviceOperation(async () => {
+		const ownerId = scopedUserId(userId);
+		const id = parseInput(idSchema, itemId);
+		return db.transaction(async (tx) => {
+			const reminder = await loadOwnedItem(tx, ownerId, id, 'reminder');
+			const nextDueAt =
+				reminder.dueAt && reminder.timeZone
+					? nextReminderOccurrence(reminder.dueAt, reminder.recurrence, reminder.timeZone)
+					: null;
+			await updateBaseItem(tx, ownerId, id, {});
+			await updateReminderDetails(
+				tx,
+				ownerId,
+				id,
+				nextDueAt
+					? {
+							dueAt: nextDueAt,
+							state: 'pending',
+							completedAt: null,
+							lastNotifiedAt: null
+						}
+					: { state: 'completed', completedAt: new Date() }
+			);
+			return loadOwnedItem(tx, ownerId, id, 'reminder');
+		});
 	});
 }
 
@@ -115,6 +140,6 @@ export async function deleteReminder(userId: string, itemId: string): Promise<vo
 	return serviceOperation(async () => {
 		const ownerId = scopedUserId(userId);
 		const id = parseInput(idSchema, itemId);
-		await deleteOwnedItem(db, ownerId, id, 'reminder');
+		await db.transaction((tx) => deleteOwnedItem(tx, ownerId, id, 'reminder'));
 	});
 }

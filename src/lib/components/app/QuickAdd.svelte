@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { REMINDER_RECURRENCE_OPTIONS } from '$lib/reminders/recurrence';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Dialog from '$lib/components/ui/Dialog.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
@@ -54,7 +55,15 @@
 			<Input label="What should you remember?" name="title" required />
 			<Textarea label="Details" name="description" rows={3} />
 			<Input label="Date and time" name="dueAt" type="datetime-local" required />
-			<Input label="Repeat" name="recurrence" description="Optional, for example every Monday" />
+			<div class="field">
+				<label for="quick-recurrence">Repeat</label>
+				<select id="quick-recurrence" name="recurrence">
+					<option value="">Never</option>
+					{#each REMINDER_RECURRENCE_OPTIONS as option (option.value)}
+						<option value={option.value}>{option.label}</option>
+					{/each}
+				</select>
+			</div>
 			<input type="hidden" name="timeZone" value={currentTimeZone} />
 			{@render sharedFields()}
 			<Button type="submit" fullWidth>Save reminder</Button>

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { REMINDER_RECURRENCE_OPTIONS } from '$lib/reminders/recurrence';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Dialog from '$lib/components/ui/Dialog.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
@@ -154,12 +155,15 @@
 			<Input label="Title" required maxlength={300} bind:value={title} />
 			<Textarea label="Description" maxlength={2000} rows={4} bind:value={description} />
 			<Input label="Due date and time" type="datetime-local" required bind:value={dueAt} />
-			<Input
-				label="Recurrence"
-				maxlength={500}
-				bind:value={recurrence}
-				placeholder="Optional recurrence rule"
-			/>
+			<label class="select-field">
+				<span>Repeat</span>
+				<select bind:value={recurrence}>
+					<option value="">Never</option>
+					{#each REMINDER_RECURRENCE_OPTIONS as option (option.value)}
+						<option value={option.value}>{option.label}</option>
+					{/each}
+				</select>
+			</label>
 		{/if}
 
 		<label class="select-field">

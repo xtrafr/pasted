@@ -1,5 +1,6 @@
 import { fail } from '@sveltejs/kit';
 import type { Actions, PageServerLoad } from './$types';
+import { isReminderRecurrence, reminderDateTimeFromLocalInput } from '$lib/reminders/recurrence';
 import { ServiceError } from '$lib/server/errors';
 import {
 	applyBulkAction,
@@ -170,13 +171,24 @@ export const actions: Actions = {
 	createReminder: async ({ locals, request }) => {
 		try {
 			const form = await request.formData();
-			const dueAt = optionalText(form, 'dueAt');
+			const dueInput = optionalText(form, 'dueAt');
+			const timeZone = optionalText(form, 'timeZone') ?? 'UTC';
+			const dueAt = dueInput ? reminderDateTimeFromLocalInput(dueInput, timeZone) : null;
+			if (!dueAt) {
+				throw new ServiceError('validation_failed', 'Choose a valid due date and time', 400);
+			}
+			const recurrenceInput = nullableText(form, 'recurrence');
+			const recurrence =
+				recurrenceInput && isReminderRecurrence(recurrenceInput) ? recurrenceInput : null;
+			if (recurrenceInput && !recurrence) {
+				throw new ServiceError('validation_failed', 'Choose a supported repeat schedule', 400);
+			}
 			const item = await createReminder(requiredUserId(locals), {
 				title: String(form.get('title') ?? ''),
 				description: nullableText(form, 'description'),
-				dueAt: dueAt ? new Date(dueAt).toISOString() : '',
-				recurrence: nullableText(form, 'recurrence'),
-				timeZone: optionalText(form, 'timeZone') ?? 'UTC',
+				dueAt: dueAt.toISOString(),
+				recurrence,
+				timeZone,
 				collectionId: nullableText(form, 'collectionId'),
 				tagIds: tagIds(form)
 			});

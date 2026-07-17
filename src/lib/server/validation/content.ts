@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { REMINDER_RECURRENCES } from '$lib/reminders/recurrence';
 import {
 	cursorSchema,
 	dateInputSchema,
@@ -98,7 +99,7 @@ export const createReminderSchema = z
 		title: titleSchema,
 		description: descriptionSchema.nullable().optional(),
 		dueAt: dateInputSchema,
-		recurrence: z.string().trim().min(1).max(500).nullable().optional(),
+		recurrence: z.enum(REMINDER_RECURRENCES).nullable().optional(),
 		timeZone: timeZoneSchema.default('UTC')
 	})
 	.strict();
@@ -109,7 +110,7 @@ export const updateReminderSchema = z
 		title: titleSchema.optional(),
 		dueAt: dateInputSchema.optional(),
 		reminderState: z.enum(['pending', 'completed']).optional(),
-		recurrence: z.string().trim().min(1).max(500).nullable().optional(),
+		recurrence: z.enum(REMINDER_RECURRENCES).nullable().optional(),
 		timeZone: timeZoneSchema.optional()
 	})
 	.strict()
