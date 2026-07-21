@@ -38,7 +38,9 @@ const useLinksStore = create<LinksState>((set, get) => ({
 
       await get().getLinks()
 
-      get().getMetadata(newLink)
+      void get()
+        .getMetadata(newLink)
+        .catch(() => undefined)
     } catch (error) {
       throw new Error('Failed to add link.')
     }
@@ -74,7 +76,7 @@ const useLinksStore = create<LinksState>((set, get) => ({
     try {
       await window.electron.ipcRenderer.invoke('get-metadata', link)
 
-      get().getLinks()
+      await get().getLinks()
     } catch (error) {
       throw new Error('Failed to get metadata.')
     }

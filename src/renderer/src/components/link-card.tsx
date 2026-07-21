@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react'
 
 import { toast } from 'sonner'
 
-import { Link } from 'react-router-dom'
-
 import { Check, Globe } from 'lucide-react'
 
 import { useClickAway } from '@uidotdev/usehooks'
@@ -30,14 +28,19 @@ import ImageWithFallback from '@renderer/components/image-with-fallback'
 
 import useLinksStore from '@renderer/stores/LinksStore'
 import useFoldersStore from '@renderer/stores/FoldersStore'
-import useSidebarStore from '@renderer/stores/SidebarStore'
 
-import cn from '@renderer/utils/cn'
 import formatTimestamp from '@renderer/utils/formatTimestamp'
+
+const getDisplayHostname = (url: string): string => {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return url
+  }
+}
 
 const LinkCard = ({ link }: { link: Link }): JSX.Element => {
   const { folders } = useFoldersStore()
-  const { isSidebarOpen } = useSidebarStore()
   const { deleteLink, updateLinkFolder, updateLinkTitle, updateLinkPin } = useLinksStore()
 
   const [isEditingLink, setIsEditingLink] = useState(false)
@@ -146,17 +149,27 @@ const LinkCard = ({ link }: { link: Link }): JSX.Element => {
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
-        <Link
-          to={link.url}
-          target="_blank"
-          draggable="false"
-          className="w-full px-3 py-2 rounded-md flex items-center justify-between cursor-default hover:bg-zinc-50 group data-[state=open]:bg-zinc-50 select-none"
+        <div
+          role="link"
+          tabIndex={isEditingLink ? -1 : 0}
+          aria-label={`Open ${link.title || link.url}`}
+          className="group flex w-full cursor-default select-none items-center justify-between gap-3 rounded-md px-3 py-2 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-500 focus-visible:ring-offset-1 data-[state=open]:bg-zinc-50 dark:hover:bg-zinc-900 dark:focus-visible:ring-zinc-400 dark:focus-visible:ring-offset-zinc-950 dark:data-[state=open]:bg-zinc-900"
+          onClick={handleOpenLink}
+          onKeyDown={(event) => {
+            if (event.target !== event.currentTarget) return
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault()
+              handleOpenLink()
+            }
+          }}
         >
-          <div className="w-full flex items-center justify-start gap-x-2">
+          <div className="flex min-w-0 flex-1 items-start gap-x-2">
             <ImageWithFallback
               src={link.iconUrl}
-              className="size-5 rounded select-none"
-              fallback={<Globe className="size-5 text-zinc-500 min-w-5 min-h-5" />}
+              className="mt-0.5 size-5 rounded select-none"
+              fallback={
+                <Globe className="mt-0.5 size-5 min-h-5 min-w-5 text-zinc-500 dark:text-zinc-400" />
+              }
             />
             {isEditingLink ? (
               <Input
@@ -164,38 +177,52 @@ const LinkCard = ({ link }: { link: Link }): JSX.Element => {
                 spellCheck="false"
                 placeholder="link title"
                 value={newLinkTitle ?? ''}
-                className="h-auto rounded-none border-0 bg-transparent p-0 text-sm font-medium text-zinc-900"
+                className="h-auto rounded-none border-0 bg-transparent p-0 text-sm font-medium text-zinc-900 dark:text-zinc-100"
                 onKeyDown={handleKeyDown}
-                onClick={(e) => e.preventDefault()}
+                onClick={(event) => event.stopPropagation()}
                 onChange={(e) => setNewLinkTitle(e.target.value)}
               />
             ) : (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <p
-                      className={cn(
-                        'max-w-[30rem] text-sm font-medium text-zinc-900 whitespace-nowrap overflow-hidden text-ellipsis',
-                        isSidebarOpen
-                          ? 'max-[960px]:max-w-80 max-md:max-w-64 max-[720px]:max-w-48 max-sm:max-w-32 max-[560px]:max-w-12'
-                          : 'max-[720px]:max-w-96 max-sm:max-w-80 max-[560px]:max-w-56'
-                      )}
+              <div className="min-w-0 flex-1">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                        {link.title || link.url}
+                      </p>
+                    </TooltipTrigger>
+                    <TooltipContent
+                      collisionPadding={12}
+                      className="max-w-[30rem] max-[560px]:max-w-96"
                     >
                       {link.title || link.url}
-                    </p>
-                  </TooltipTrigger>
-                  <TooltipContent
-                    collisionPadding={12}
-                    className="max-w-[30rem] max-[560px]:max-w-96"
-                  >
-                    {link.title || link.url}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
+                  <p className="min-w-0 flex-1 truncate text-xs text-zinc-500 dark:text-zinc-400">
+                    {link.description || getDisplayHostname(link.url)}
+                  </p>
+                  {Array.isArray(link.groups) &&
+                    link.groups.slice(0, 2).map((group) => (
+                      <span
+                        key={group}
+                        className="hidden shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-zinc-600 sm:inline dark:bg-zinc-800 dark:text-zinc-400"
+                      >
+                        {group.toLowerCase()}
+                      </span>
+                    ))}
+                  {Array.isArray(link.groups) && link.groups.length > 2 && (
+                    <span className="hidden shrink-0 text-[10px] text-zinc-400 sm:inline dark:text-zinc-500">
+                      +{link.groups.length - 2}
+                    </span>
+                  )}
+                </div>
+              </div>
             )}
           </div>
           {!isEditingLink && (
-            <p className="text-sm font-medium text-zinc-500 whitespace-nowrap hidden group-hover:block">
+            <p className="hidden whitespace-nowrap text-xs font-medium text-zinc-500 group-hover:block dark:text-zinc-400">
               {link.productPrice
                 ? link.productPrice
                 : link.readTime
@@ -203,7 +230,7 @@ const LinkCard = ({ link }: { link: Link }): JSX.Element => {
                   : formatTimestamp(link.createdAt)}
             </p>
           )}
-        </Link>
+        </div>
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuItem onClick={handleOpenLink}>open link</ContextMenuItem>
@@ -228,7 +255,7 @@ const LinkCard = ({ link }: { link: Link }): JSX.Element => {
                     >
                       {folder.name}
                       {folder.id === link.folderId && (
-                        <Check className="size-4 ml-auto text-zinc-500" />
+                        <Check className="size-4 ml-auto text-zinc-500 dark:text-zinc-400" />
                       )}
                     </ContextMenuItem>
                   ))}

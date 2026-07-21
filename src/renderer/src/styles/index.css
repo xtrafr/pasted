@@ -13,13 +13,13 @@
 
   html,
   body {
-    @apply w-full h-full relative [-webkit-font-smoothing:antialiased] [text-rendering:optimizeLegibility] selection:bg-zinc-600/10;
+    @apply w-full h-full relative bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100 [-webkit-font-smoothing:antialiased] [text-rendering:optimizeLegibility] selection:bg-zinc-600/10 dark:selection:bg-zinc-300/20;
   }
 }
 
 @layer components {
   #root {
-    @apply w-full h-full relative;
+    @apply w-full h-full relative bg-white dark:bg-zinc-950;
   }
 }
 
@@ -31,7 +31,59 @@
 }
 
 .tiptap p.is-editor-empty:first-child::before {
-  @apply text-zinc-500 [content:attr(data-placeholder)] float-left h-0 pointer-events-none;
+  @apply text-zinc-500 dark:text-zinc-400 [content:attr(data-placeholder)] float-left h-0 pointer-events-none;
+}
+
+.dark .hljs {
+  color: #c9d1d9;
+  background: #0d1117;
+}
+
+.dark .hljs-doctag,
+.dark .hljs-keyword,
+.dark .hljs-meta .hljs-keyword,
+.dark .hljs-template-tag,
+.dark .hljs-template-variable,
+.dark .hljs-type,
+.dark .hljs-variable.language_ {
+  color: #ff7b72;
+}
+
+.dark .hljs-title,
+.dark .hljs-title.class_,
+.dark .hljs-title.class_.inherited__,
+.dark .hljs-title.function_ {
+  color: #d2a8ff;
+}
+
+.dark .hljs-attr,
+.dark .hljs-attribute,
+.dark .hljs-literal,
+.dark .hljs-meta,
+.dark .hljs-number,
+.dark .hljs-operator,
+.dark .hljs-selector-attr,
+.dark .hljs-selector-class,
+.dark .hljs-selector-id,
+.dark .hljs-variable {
+  color: #79c0ff;
+}
+
+.dark .hljs-meta .hljs-string,
+.dark .hljs-regexp,
+.dark .hljs-string {
+  color: #a5d6ff;
+}
+
+.dark .hljs-built_in,
+.dark .hljs-symbol {
+  color: #ffa657;
+}
+
+.dark .hljs-code,
+.dark .hljs-comment,
+.dark .hljs-formula {
+  color: #8b949e;
 }
 
 .virtualized-links-container div[data-testid='virtuoso-item-list'] {

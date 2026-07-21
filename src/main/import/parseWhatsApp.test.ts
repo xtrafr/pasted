@@ -15,7 +15,8 @@ describe('parseWhatsAppExport', () => {
         url: 'https://example.com/video',
         normalizedUrl: 'https://example.com/video',
         sourceDate: '26/12/22, 16:59:31',
-        sensitive: false
+        sensitive: false,
+        potentiallyAdult: false
       }
     ])
     expect(result.invalidCount).toBe(0)
@@ -82,6 +83,20 @@ describe('parseWhatsAppExport', () => {
     expect(result.candidates.map((candidate) => candidate.url)).toEqual([
       'https://docs.example.com:8443/guide',
       'https://example.org/?view=compact'
+    ])
+  })
+
+  it('flags likely adult links locally without matching similar words', () => {
+    const result = parseWhatsAppExport(
+      '[5/5/25, 12:00:00] Person: https://adult-content.example/watch\n' +
+        '[5/5/25, 12:01:00] Person: https://example.org/r/nsfw\n' +
+        '[5/5/25, 12:02:00] Person: https://example.net/essex-history'
+    )
+
+    expect(result.candidates.map((candidate) => candidate.potentiallyAdult)).toEqual([
+      true,
+      true,
+      false
     ])
   })
 

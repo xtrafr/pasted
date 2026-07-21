@@ -103,7 +103,7 @@ const ImageCard = ({ image }: { image: Image }): JSX.Element => {
                     >
                       {folder.name}
                       {folder.id === image.folderId && (
-                        <Check className="size-4 ml-auto text-zinc-500" />
+                        <Check className="size-4 ml-auto text-zinc-500 dark:text-zinc-400" />
                       )}
                     </ContextMenuItem>
                   ))}

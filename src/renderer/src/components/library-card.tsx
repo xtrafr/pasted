@@ -119,29 +119,31 @@ const LibraryCard = ({ library }: { library: Library }): JSX.Element => {
   }
 
   return (
-    <div className="flex items-center justify-between p-3 border border-zinc-200 rounded-md">
+    <div className="flex items-center justify-between p-3 border border-zinc-200 dark:border-zinc-800 rounded-md">
       <div className="flex items-center gap-x-2">
-        <Library className="size-6 text-zinc-700" />
+        <Library className="size-6 text-zinc-700 dark:text-zinc-300" />
         {isEditingLibrary ? (
           <Input
             ref={inputRef}
             spellCheck="false"
             placeholder="library name"
             value={newLibraryName}
-            className="max-w-32 h-auto rounded-none border-0 bg-transparent p-0 text-xs font-medium text-zinc-900"
+            className="max-w-32 h-auto rounded-none border-0 bg-transparent p-0 text-xs font-medium text-zinc-900 dark:text-zinc-100"
             onKeyDown={handleKeyDown}
             onClick={(e) => e.preventDefault()}
             onChange={(e) => setNewLibraryName(e.target.value)}
           />
         ) : (
-          <p className="text-xs font-medium text-zinc-900 select-none">{library.name}</p>
+          <p className="text-xs font-medium text-zinc-900 dark:text-zinc-100 select-none">
+            {library.name}
+          </p>
         )}
       </div>
       <div className="flex items-center gap-x-2">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button size="icon" variant="tertiary">
-              <Ellipsis className="size-5 text-zinc-600" />
+              <Ellipsis className="size-5 text-zinc-600 dark:text-zinc-400" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent>

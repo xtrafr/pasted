@@ -19,7 +19,7 @@ const SearchInput = (): JSX.Element => {
 
   return (
     <div className="relative">
-      <Search className="size-4 text-zinc-500 absolute top-2.5 left-3" />
+      <Search className="size-4 text-zinc-500 dark:text-zinc-400 absolute top-2.5 left-3" />
       <Input
         value={query}
         placeholder="search"

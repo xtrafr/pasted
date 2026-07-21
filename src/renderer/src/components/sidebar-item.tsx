@@ -23,15 +23,16 @@ const SidebarItem = ({
       className={({ isActive }) =>
         cn(
           'w-full flex items-center justify-between px-2 py-1 rounded cursor-default select-none',
-          isActive && 'bg-zinc-50 [&>div>p]:text-zinc-800'
+          isActive &&
+            'bg-zinc-50 dark:bg-zinc-900 [&>div>p]:text-zinc-800 dark:[&>div>p]:text-zinc-200'
         )
       }
     >
       <div className="flex items-center justify-start gap-x-2">
-        <Icon className="size-5 text-zinc-500" />
-        <p className="text-sm font-medium text-zinc-700">{title}</p>
+        <Icon className="size-5 text-zinc-500 dark:text-zinc-400" />
+        <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">{title}</p>
       </div>
-      <p className="text-xs font-medium text-zinc-700">{count}</p>
+      <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300">{count}</p>
     </NavLink>
   )
 }

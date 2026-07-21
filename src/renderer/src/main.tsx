@@ -15,22 +15,25 @@ import FolderPage from '@renderer/pages/FolderPage'
 
 import Layout from '@renderer/components/layout'
 import Notification from '@renderer/components/notification'
+import ThemeProvider from '@renderer/components/theme-provider'
 
 ReactDOM.createRoot(document.getElementById('root') as HTMLElement).render(
   <React.StrictMode>
-    <MemoryRouter>
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/create-library" element={<CreateLibraryPage />} />
-        <Route element={<Layout />}>
-          <Route path="/all-items" element={<AllItemsPage />} />
-          <Route path="/links" element={<LinksPage />} />
-          <Route path="/notes" element={<NotesPage />} />
-          <Route path="/images" element={<ImagesPage />} />
-          <Route path="/folders/:folderId" element={<FolderPage />} />
-        </Route>
-      </Routes>
-    </MemoryRouter>
-    <Notification />
+    <ThemeProvider>
+      <MemoryRouter>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/create-library" element={<CreateLibraryPage />} />
+          <Route element={<Layout />}>
+            <Route path="/all-items" element={<AllItemsPage />} />
+            <Route path="/links" element={<LinksPage />} />
+            <Route path="/notes" element={<NotesPage />} />
+            <Route path="/images" element={<ImagesPage />} />
+            <Route path="/folders/:folderId" element={<FolderPage />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+      <Notification />
+    </ThemeProvider>
   </React.StrictMode>
 )

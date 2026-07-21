@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const library = vi.hoisted(() => ({
   storedUrls: new Set<string>(),
-  addLink: vi.fn()
+  addLink: vi.fn(),
+  getMetadata: vi.fn()
 }))
 
 vi.mock('@main/database/DatabaseManager', () => ({
@@ -23,6 +24,10 @@ vi.mock('@main/utils/addLink', () => ({
   default: library.addLink
 }))
 
+vi.mock('@main/utils/getMetadata', () => ({
+  default: library.getMetadata
+}))
+
 import importWhatsAppLinks from './importWhatsAppLinks'
 import { prepareWhatsAppReview } from './selectWhatsAppChat'
 
@@ -30,6 +35,8 @@ describe('WhatsApp import', () => {
   beforeEach(() => {
     library.storedUrls.clear()
     library.addLink.mockReset()
+    library.getMetadata.mockReset()
+    library.getMetadata.mockResolvedValue(undefined)
     library.addLink.mockImplementation(async ({ url }: { url: string }) => {
       if (library.storedUrls.has(url)) throw new Error('Duplicate link')
       library.storedUrls.add(url)
@@ -61,7 +68,14 @@ describe('WhatsApp import', () => {
       { url: 'javascript:alert(1)' }
     ])
 
-    expect(firstResult).toEqual({ imported: 2, skipped: 3, failed: 0 })
+    expect(firstResult).toEqual({
+      imported: 2,
+      skipped: 3,
+      failed: 0,
+      metadataEnriched: 2,
+      metadataFailed: 0,
+      metadataSkipped: 0
+    })
     expect(library.addLink).toHaveBeenCalledTimes(2)
 
     const secondResult = await importWhatsAppLinks([
@@ -69,11 +83,39 @@ describe('WhatsApp import', () => {
       { url: 'https://example.net/reference' }
     ])
 
-    expect(secondResult).toEqual({ imported: 0, skipped: 2, failed: 0 })
+    expect(secondResult).toEqual({
+      imported: 0,
+      skipped: 2,
+      failed: 0,
+      metadataEnriched: 0,
+      metadataFailed: 0,
+      metadataSkipped: 0
+    })
     expect([...library.storedUrls].sort()).toEqual([
       'https://example.com/existing',
       'https://example.net/reference',
       'https://example.org/guide'
     ])
+  })
+
+  it('keeps imported links when metadata fails and skips sensitive previews', async () => {
+    library.getMetadata.mockRejectedValueOnce(new Error('Preview unavailable'))
+
+    const result = await importWhatsAppLinks([
+      { url: 'https://example.org/guide' },
+      { url: 'https://example.net/article' },
+      { url: 'https://service.example/invite/private-code' }
+    ])
+
+    expect(result).toEqual({
+      imported: 3,
+      skipped: 0,
+      failed: 0,
+      metadataEnriched: 1,
+      metadataFailed: 1,
+      metadataSkipped: 1
+    })
+    expect(library.getMetadata).toHaveBeenCalledTimes(2)
+    expect(library.storedUrls).toHaveProperty('size', 3)
   })
 })

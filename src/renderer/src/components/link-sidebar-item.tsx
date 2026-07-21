@@ -117,7 +117,7 @@ const LinkSidebarItem = ({ link }: { link: Link }): JSX.Element => {
           <ImageWithFallback
             src={link.iconUrl}
             className="size-5 rounded"
-            fallback={<Globe className="size-5 text-zinc-500 min-w-5 min-h-5" />}
+            fallback={<Globe className="size-5 text-zinc-500 dark:text-zinc-400 min-w-5 min-h-5" />}
           />
           {isEditingLink ? (
             <Input
@@ -125,13 +125,13 @@ const LinkSidebarItem = ({ link }: { link: Link }): JSX.Element => {
               spellCheck="false"
               placeholder="link title"
               value={newLinkTitle ?? ''}
-              className="max-w-32 h-auto rounded-none border-0 bg-transparent p-0 text-sm font-medium text-zinc-700"
+              className="max-w-32 h-auto rounded-none border-0 bg-transparent p-0 text-sm font-medium text-zinc-700 dark:text-zinc-300"
               onKeyDown={handleKeyDown}
               onClick={(e) => e.preventDefault()}
               onChange={(e) => setNewLinkTitle(e.target.value)}
             />
           ) : (
-            <p className="max-w-32 text-sm font-medium text-zinc-700 whitespace-nowrap overflow-hidden text-ellipsis">
+            <p className="max-w-32 text-sm font-medium text-zinc-700 dark:text-zinc-300 whitespace-nowrap overflow-hidden text-ellipsis">
               {link.title || link.url}
             </p>
           )}

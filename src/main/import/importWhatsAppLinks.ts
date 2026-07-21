@@ -1,4 +1,5 @@
 import addLink from '@main/utils/addLink'
+import getMetadata from '@main/utils/getMetadata'
 import databaseManager from '@main/database/DatabaseManager'
 
 import { MAX_WHATSAPP_CANDIDATES, normalizeWhatsAppUrl } from './parseWhatsApp'
@@ -11,6 +12,53 @@ export interface WhatsAppImportResult {
   imported: number
   skipped: number
   failed: number
+  metadataEnriched: number
+  metadataFailed: number
+  metadataSkipped: number
+}
+
+const MAX_METADATA_ENRICHMENTS = 100
+const METADATA_CONCURRENCY = 6
+
+interface MetadataCandidate {
+  link: Link
+  sensitive: boolean
+}
+
+const enrichMetadata = async (
+  candidates: MetadataCandidate[]
+): Promise<
+  Pick<WhatsAppImportResult, 'metadataEnriched' | 'metadataFailed' | 'metadataSkipped'>
+> => {
+  const eligible = candidates.filter((candidate) => !candidate.sensitive)
+  const queue = eligible.slice(0, MAX_METADATA_ENRICHMENTS)
+  let nextIndex = 0
+  let metadataEnriched = 0
+  let metadataFailed = 0
+
+  const worker = async (): Promise<void> => {
+    while (nextIndex < queue.length) {
+      const candidate = queue[nextIndex]
+      nextIndex += 1
+
+      try {
+        await getMetadata(candidate.link)
+        metadataEnriched += 1
+      } catch {
+        metadataFailed += 1
+      }
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(METADATA_CONCURRENCY, queue.length) }, () => worker())
+  )
+
+  return {
+    metadataEnriched,
+    metadataFailed,
+    metadataSkipped: candidates.length - queue.length
+  }
 }
 
 const getExistingUrls = async (): Promise<Set<string>> => {
@@ -38,6 +86,7 @@ const importWhatsAppLinks = async (
   let imported = 0
   let skipped = 0
   let failed = 0
+  const metadataCandidates: MetadataCandidate[] = []
 
   for (const item of selection) {
     if (!item || typeof item.url !== 'string') {
@@ -55,15 +104,18 @@ const importWhatsAppLinks = async (
     selectedUrls.add(normalized.url)
 
     try {
-      await addLink({ url: normalized.url })
+      const link = await addLink({ url: normalized.url })
       existingUrls.add(normalized.url)
+      metadataCandidates.push({ link, sensitive: normalized.sensitive })
       imported += 1
     } catch {
       failed += 1
     }
   }
 
-  return { imported, skipped, failed }
+  const metadataResult = await enrichMetadata(metadataCandidates)
+
+  return { imported, skipped, failed, ...metadataResult }
 }
 
 export default importWhatsAppLinks

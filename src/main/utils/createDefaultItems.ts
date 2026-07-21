@@ -4,7 +4,7 @@ import addNote from '@main/utils/addNote'
 const DEFAULT_LINK = {
   url: 'https://github.com/xtrafr/pasted',
   title: 'xtrafr/pasted: your private local library for links, notes, images, and chats.',
-  iconUrl: 'https://github.githubassets.com/favicons/favicon.svg'
+  description: 'The source repository for the Pasted desktop app.'
 }
 
 const DEFAULT_NOTE = {

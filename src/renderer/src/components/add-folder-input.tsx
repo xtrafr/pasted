@@ -58,12 +58,12 @@ const AddFolderInput = (): JSX.Element => {
       ref={ref}
       className="w-full flex items-center justify-start gap-x-2 px-2 py-1 rounded cursor-default"
     >
-      <FolderClosed className="size-5 text-zinc-500 min-w-5" />
+      <FolderClosed className="size-5 text-zinc-500 dark:text-zinc-400 min-w-5" />
       <Input
         ref={inputRef}
         value={newFolderName}
         placeholder="folder name"
-        className="h-auto rounded-none border-0 bg-transparent p-0 text-sm text-zinc-700 font-medium"
+        className="h-auto rounded-none border-0 bg-transparent p-0 text-sm text-zinc-700 dark:text-zinc-300 font-medium"
         onChange={(e) => setNewFolderName(e.target.value)}
         onKeyDown={handleKeyDown}
       />

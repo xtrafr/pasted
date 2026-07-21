@@ -4,6 +4,7 @@ export interface WhatsAppReviewCandidate {
   normalizedUrl: string
   sourceDate: string | null
   sensitive: boolean
+  potentiallyAdult: boolean
   alreadySaved: boolean
 }
 
@@ -27,4 +28,7 @@ export interface WhatsAppImportResult {
   imported: number
   skipped: number
   failed: number
+  metadataEnriched: number
+  metadataFailed: number
+  metadataSkipped: number
 }

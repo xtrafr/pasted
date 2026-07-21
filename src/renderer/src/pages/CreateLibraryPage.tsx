@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Input } from '@renderer/components/input'
 import { Label } from '@renderer/components/label'
 import { Button } from '@renderer/components/button'
+import ThemeToggle from '@renderer/components/theme-toggle'
 
 import useLibraryStore from '@renderer/stores/LibraryStore'
 import useCreateLibraryStore from '@renderer/stores/CreateLibraryStore'
@@ -53,20 +54,28 @@ const CreateLibraryPage = (): JSX.Element => {
 
   return (
     <main className="w-full h-full flex flex-col items-center justify-center">
-      <header className="w-full flex h-[3.25rem] min-h-[3.25rem] [-webkit-app-region:drag]"></header>
+      <header className="w-full flex h-[3.25rem] min-h-[3.25rem] items-center justify-end px-3 [-webkit-app-region:drag]">
+        <ThemeToggle className="[-webkit-app-region:no-drag]" />
+      </header>
       <div className="w-full h-full flex flex-col items-center justify-center px-8 py-6 gap-y-6 overflow-auto">
         <div className="flex flex-col items-center gap-y-5 text-center">
           <img src={pastedLogo} alt="Pasted" className="size-12 select-none" draggable="false" />
           <div className="select-none">
-            <h1 className="text-2xl font-semibold text-zinc-900 mb-2">create a new library</h1>
-            <p className="text-sm text-zinc-600">choose a name and location to get started</p>
+            <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100 mb-2">
+              create a new library
+            </h1>
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              choose a name and location to get started
+            </p>
           </div>
         </div>
         <div className="max-w-[30rem] w-full flex flex-col gap-y-4">
           <div className="flex items-center justify-between">
             <div className="flex flex-col select-none">
               <Label htmlFor="library-name">library name</Label>
-              <p className="text-xs text-zinc-600">enter a name for your library</p>
+              <p className="text-xs text-zinc-600 dark:text-zinc-400">
+                enter a name for your library
+              </p>
             </div>
             <Input
               type="text"
@@ -80,7 +89,7 @@ const CreateLibraryPage = (): JSX.Element => {
           <div className="flex items-center justify-between">
             <div className="flex flex-col select-none">
               <Label htmlFor="library-path">location</Label>
-              <p className="text-xs text-zinc-600">
+              <p className="text-xs text-zinc-600 dark:text-zinc-400">
                 {libraryPath ? libraryPath : 'pick a place to put your new library'}
               </p>
             </div>

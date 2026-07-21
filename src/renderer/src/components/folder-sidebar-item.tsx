@@ -101,30 +101,33 @@ const FolderSidebarItem = ({ folder }: { folder: Folder }): JSX.Element => {
           className={({ isActive }) =>
             cn(
               'w-full flex items-center justify-between px-2 py-1 rounded cursor-default select-none',
-              isActive && 'bg-zinc-50 [&>div>p]:text-zinc-800'
+              isActive &&
+                'bg-zinc-50 dark:bg-zinc-900 [&>div>p]:text-zinc-800 dark:[&>div>p]:text-zinc-200'
             )
           }
         >
           <div className="flex items-center justify-start gap-x-2">
-            <FolderClosed className="size-5 text-zinc-500 min-w-5" />
+            <FolderClosed className="size-5 text-zinc-500 dark:text-zinc-400 min-w-5" />
             {isEditingFolder ? (
               <Input
                 ref={inputRef}
                 spellCheck="false"
                 placeholder="folder name"
                 value={newFolderName}
-                className="max-w-24 h-auto rounded-none border-0 bg-transparent p-0 text-sm font-medium text-zinc-700"
+                className="max-w-24 h-auto rounded-none border-0 bg-transparent p-0 text-sm font-medium text-zinc-700 dark:text-zinc-300"
                 onKeyDown={handleKeyDown}
                 onClick={(e) => e.preventDefault()}
                 onChange={(e) => setNewFolderName(e.target.value)}
               />
             ) : (
-              <p className="max-w-24 text-sm font-medium text-zinc-700 whitespace-nowrap overflow-hidden text-ellipsis">
+              <p className="max-w-24 text-sm font-medium text-zinc-700 dark:text-zinc-300 whitespace-nowrap overflow-hidden text-ellipsis">
                 {folder.name}
               </p>
             )}
           </div>
-          <p className="text-xs font-medium text-zinc-700">{folderItemCounts[folder.id]}</p>
+          <p className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+            {folderItemCounts[folder.id]}
+          </p>
         </NavLink>
       </ContextMenuTrigger>
       <ContextMenuContent>

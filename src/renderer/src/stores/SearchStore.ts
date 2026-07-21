@@ -13,7 +13,7 @@ interface SearchState {
 }
 
 const fuseOptions = {
-  keys: ['title', 'content', 'url'],
+  keys: ['title', 'description', 'tags', 'groups', 'content', 'url'],
   threshold: 0.3,
   ignoreLocation: true,
   useExtendedSearch: true,

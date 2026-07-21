@@ -17,6 +17,7 @@ import {
 import { Input } from '@renderer/components/input'
 import { Button } from '@renderer/components/button'
 import WhatsAppImportDialog from '@renderer/components/whatsapp-import-dialog'
+import ThemeToggle from '@renderer/components/theme-toggle'
 
 import useLibraryStore from '@renderer/stores/LibraryStore'
 import useLinksStore from '@renderer/stores/LinksStore'
@@ -161,9 +162,9 @@ const Header = (): JSX.Element => {
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
           >
             {isSidebarOpen ? (
-              <PanelRightOpen className="size-5 text-zinc-600" />
+              <PanelRightOpen className="size-5 text-zinc-600 dark:text-zinc-400" />
             ) : (
-              <PanelRightClose className="size-5 text-zinc-600" />
+              <PanelRightClose className="size-5 text-zinc-600 dark:text-zinc-400" />
             )}
           </Button>
           <Button asChild variant="tertiary" className="[-webkit-app-region:no-drag]">
@@ -172,46 +173,44 @@ const Header = (): JSX.Element => {
             </Link>
           </Button>
         </div>
-        <DropdownMenu open={open} onOpenChange={handleOpenChange}>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="tertiary"
-              size="icon"
-              className="[-webkit-app-region:no-drag]"
-              aria-label="Open Pasted menu"
-            >
-              <Ellipsis className="size-5 text-zinc-600" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={handleSelectWhatsAppChat}>
-              import WhatsApp chat
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleImportBookmarks}>import bookmarks</DropdownMenuItem>
-            <DropdownMenuItem onClick={handleExportBookmarks}>export bookmarks</DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>update api port</DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                <div className="w-full relative flex flex-col gap-y-1">
-                  <Input
-                    type="number"
-                    aria-label="API port"
-                    placeholder="api port"
-                    className="w-full h-[1.625rem] text-xs appearance-none"
-                    value={newPort}
-                    min={1024}
-                    max={65535}
-                    onChange={(e) => setNewPort(e.target.value)}
-                  />
-                  <Button variant="secondary" onClick={handleUpdatePort}>
-                    update
-                  </Button>
-                </div>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-1 [-webkit-app-region:no-drag]">
+          <ThemeToggle />
+          <DropdownMenu open={open} onOpenChange={handleOpenChange}>
+            <DropdownMenuTrigger asChild>
+              <Button variant="tertiary" size="icon" aria-label="Open Pasted menu">
+                <Ellipsis className="size-5 text-zinc-600 dark:text-zinc-400" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleSelectWhatsAppChat}>
+                import WhatsApp chat
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleImportBookmarks}>import bookmarks</DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportBookmarks}>export bookmarks</DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>update api port</DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <div className="w-full relative flex flex-col gap-y-1">
+                    <Input
+                      type="number"
+                      aria-label="API port"
+                      placeholder="api port"
+                      className="w-full h-[1.625rem] text-xs appearance-none"
+                      value={newPort}
+                      min={1024}
+                      max={65535}
+                      onChange={(e) => setNewPort(e.target.value)}
+                    />
+                    <Button variant="secondary" onClick={handleUpdatePort}>
+                      update
+                    </Button>
+                  </div>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </header>
       {whatsAppReview && (
         <WhatsAppImportDialog

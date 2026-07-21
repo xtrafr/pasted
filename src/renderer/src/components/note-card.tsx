@@ -78,7 +78,7 @@ const NoteCard = ({ note }: { note: Note }): JSX.Element => {
         code: {
           HTMLAttributes: {
             class:
-              'px-1 py-0.5 rounded bg-zinc-100 border border-zinc-300 before:content-none after:content-none box-decoration-clone'
+              'px-1 py-0.5 rounded bg-zinc-100 border border-zinc-300 dark:border-zinc-700 dark:bg-zinc-800 before:content-none after:content-none box-decoration-clone'
           }
         }
       }),
@@ -102,16 +102,20 @@ const NoteCard = ({ note }: { note: Note }): JSX.Element => {
       }),
       CodeBlockLowlight.configure({
         lowlight,
-        HTMLAttributes: { class: 'hljs rounded-lg border border-zinc-200' }
+        HTMLAttributes: {
+          class: 'hljs rounded-lg border border-zinc-200 dark:border-zinc-800'
+        }
       }),
       Highlight.configure({
-        HTMLAttributes: { class: 'px-1 py-0.5 rounded bg-yellow-100 box-decoration-clone' }
+        HTMLAttributes: {
+          class: 'px-1 py-0.5 rounded bg-yellow-100 dark:bg-yellow-900/40 box-decoration-clone'
+        }
       })
     ],
     content: note.content,
     editorProps: {
       attributes: {
-        class: 'px-3 py-6 outline-none prose prose-sm max-w-none prose-zinc'
+        class: 'px-3 py-6 outline-none prose prose-sm max-w-none prose-zinc dark:prose-invert'
       }
     },
     editable: isEditingNote
@@ -185,7 +189,7 @@ const NoteCard = ({ note }: { note: Note }): JSX.Element => {
                     >
                       {folder.name}
                       {folder.id === note.folderId && (
-                        <Check className="size-4 ml-auto text-zinc-500" />
+                        <Check className="size-4 ml-auto text-zinc-500 dark:text-zinc-400" />
                       )}
                     </ContextMenuItem>
                   ))}

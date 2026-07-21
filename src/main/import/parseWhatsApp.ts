@@ -29,12 +29,35 @@ const SENSITIVE_PARAMETER =
 const SENSITIVE_PATH =
   /\/(?:api\/)?(?:auth|invite|invites|session|share|shared|token|webhook|webhooks)(?:\/|$)/i
 
+const ADULT_DOMAINS = [
+  'beeg.com',
+  'brazzers.com',
+  'chaturbate.com',
+  'e621.net',
+  'fansly.com',
+  'livejasmin.com',
+  'onlyfans.com',
+  'pornhub.com',
+  'redtube.com',
+  'rule34.xxx',
+  'spankbang.com',
+  'stripchat.com',
+  'xhamster.com',
+  'xnxx.com',
+  'xvideos.com',
+  'youporn.com'
+]
+
+const ADULT_TOKEN =
+  /(?:^|[^a-z0-9])(?:adult|camgirl|erotic|hentai|nsfw|onlyfans|porn|porno|sexcam|xxx)(?:[^a-z0-9]|$)/i
+
 export interface WhatsAppLinkCandidate {
   id: string
   url: string
   normalizedUrl: string
   sourceDate: string | null
   sensitive: boolean
+  potentiallyAdult: boolean
 }
 
 export interface WhatsAppParseResult {
@@ -72,9 +95,32 @@ const getMessageDate = (line: string): string | null => {
   return match?.[1]?.trim() ?? null
 }
 
+export const isPotentiallyAdultUrl = (value: string | URL): boolean => {
+  try {
+    const parsed = typeof value === 'string' ? new URL(value) : value
+    const hostname = parsed.hostname.toLowerCase().replace(/\.$/u, '')
+
+    if (ADULT_DOMAINS.some((domain) => hostname === domain || hostname.endsWith(`.${domain}`))) {
+      return true
+    }
+
+    let path = parsed.pathname.toLowerCase()
+
+    try {
+      path = decodeURIComponent(path)
+    } catch {
+      // Keep the encoded path when it contains malformed escape sequences.
+    }
+
+    return ADULT_TOKEN.test(`${hostname} ${path}`)
+  } catch {
+    return false
+  }
+}
+
 export const normalizeWhatsAppUrl = (
   rawValue: string
-): { url: string; sensitive: boolean } | null => {
+): { url: string; sensitive: boolean; potentiallyAdult: boolean } | null => {
   const value = trimUrlPunctuation(rawValue)
   if (!value || value.length > MAX_WHATSAPP_URL_LENGTH) return null
 
@@ -108,7 +154,11 @@ export const normalizeWhatsAppUrl = (
       (/(?:^|\.)hooks\.slack\.com$/i.test(parsed.hostname) &&
         parsed.pathname.startsWith('/services/'))
 
-    return { url: parsed.toString(), sensitive }
+    return {
+      url: parsed.toString(),
+      sensitive,
+      potentiallyAdult: isPotentiallyAdultUrl(parsed)
+    }
   } catch {
     return null
   }
@@ -160,7 +210,8 @@ export const parseWhatsAppExport = (input: string): WhatsAppParseResult => {
         url: parsed.url,
         normalizedUrl: parsed.url,
         sourceDate: currentSourceDate,
-        sensitive: parsed.sensitive
+        sensitive: parsed.sensitive,
+        potentiallyAdult: parsed.potentiallyAdult
       })
     }
   }

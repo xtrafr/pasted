@@ -8,7 +8,10 @@ interface Link {
   id: number
   url: string
   title: string | null
+  description: string | null
   iconUrl: string | null
+  tags: string[]
+  groups: string[]
   folderId: number | null
   productPrice: string | null
   readTime: string | null

@@ -37,7 +37,7 @@ const Sidebar = (): JSX.Element => {
   const pinnedLinks = links.filter((link) => link.isPinned)
 
   return (
-    <nav className="w-full h-full max-w-[12.5rem] flex flex-col border-r border-zinc-200">
+    <nav className="w-full h-full max-w-[12.5rem] flex flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
       <div
         className={cn(
           'w-full h-[3.25rem] min-h-[3.25rem] flex items-center px-2.5 [-webkit-app-region:drag]',
@@ -45,7 +45,7 @@ const Sidebar = (): JSX.Element => {
         )}
       >
         {!isMacOS && (
-          <p className="text-sm font-medium cursor-default text-zinc-600 pl-2 select-none">
+          <p className="text-sm font-medium cursor-default text-zinc-600 dark:text-zinc-400 pl-2 select-none">
             Pasted
           </p>
         )}
@@ -55,7 +55,7 @@ const Sidebar = (): JSX.Element => {
           className="[-webkit-app-region:no-drag]"
           onClick={() => setIsAddingFolder(true)}
         >
-          <Plus className="size-5 text-zinc-600" />
+          <Plus className="size-5 text-zinc-600 dark:text-zinc-400" />
         </Button>
       </div>
       <div className="w-full flex items-center justify-start px-2.5 pb-5">
@@ -80,7 +80,7 @@ const Sidebar = (): JSX.Element => {
               folders.length > 0 || isAddingFolder ? 'pb-5' : 'pb-2.5'
             )}
           >
-            <p className="w-full text-start text-xs font-medium text-zinc-500 pl-2 select-none">
+            <p className="w-full text-start text-xs font-medium text-zinc-500 dark:text-zinc-400 pl-2 select-none">
               pinned
             </p>
             <div className="w-full flex flex-col items-center justify-start gap-y-1">
@@ -92,7 +92,7 @@ const Sidebar = (): JSX.Element => {
         )}
         {(folders.length > 0 || isAddingFolder) && (
           <div className="w-full flex flex-col items-center justify-start gap-y-3 pb-2.5">
-            <p className="w-full text-start text-xs font-medium text-zinc-500 pl-2 select-none">
+            <p className="w-full text-start text-xs font-medium text-zinc-500 dark:text-zinc-400 pl-2 select-none">
               folders
             </p>
             <div className="w-full flex flex-col items-center justify-start gap-y-1">

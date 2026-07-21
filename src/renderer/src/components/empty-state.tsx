@@ -7,8 +7,8 @@ const EmptyState = ({
 }): JSX.Element => {
   return (
     <div className="flex flex-col items-center justify-center gap-y-1 max-w-80 p-5 select-none">
-      <p className="text-sm font-medium text-zinc-900 text-center">{text}</p>
-      <p className="text-xs text-zinc-600 text-center">{supportingText}</p>
+      <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100 text-center">{text}</p>
+      <p className="text-xs text-zinc-600 dark:text-zinc-400 text-center">{supportingText}</p>
     </div>
   )
 }

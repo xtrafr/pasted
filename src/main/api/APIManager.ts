@@ -108,7 +108,11 @@ class APIManager {
 
         const newLink = await addLink(body)
 
-        await getMetadata(newLink)
+        try {
+          await getMetadata(newLink)
+        } catch {
+          console.info('Link saved without a remote metadata preview.')
+        }
 
         this.notifyRenderer('link-added')
 
