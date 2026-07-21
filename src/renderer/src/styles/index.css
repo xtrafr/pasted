@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  @font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url('../assets/fonts/InterVariable.woff2') format('woff2');
+  }
+
+  html,
+  body {
+    @apply w-full h-full relative [-webkit-font-smoothing:antialiased] [text-rendering:optimizeLegibility] selection:bg-zinc-600/10;
+  }
+}
+
+@layer components {
+  #root {
+    @apply w-full h-full relative;
+  }
+}
+
+@layer utilities {
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    @apply appearance-none;
+  }
+}
+
+.tiptap p.is-editor-empty:first-child::before {
+  @apply text-zinc-500 [content:attr(data-placeholder)] float-left h-0 pointer-events-none;
+}
+
+.virtualized-links-container div[data-testid='virtuoso-item-list'] {
+  @apply w-full flex flex-col items-center gap-y-1 [&>div]:w-full;
+}
+
+.virtualized-notes-container div[data-testid='virtuoso-item-list'] {
+  @apply w-full flex flex-col gap-y-1 [&>div]:w-full;
+}
+
+.virtualized-all-items-container div[data-testid='virtuoso-item-list'] {
+  @apply w-full flex flex-col gap-y-1 [&>div]:w-full;
+}
+
+.virtualized-images-container div[data-testid='virtuoso-item-list'] {
+  @apply w-full flex flex-col gap-y-3 [&>div]:w-full;
+}

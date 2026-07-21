@@ -1,0 +1,40 @@
+appId: com.xtrafr.pasted
+productName: Pasted
+directories:
+  buildResources: build
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+asarUnpack:
+  - resources/**
+  - node_modules/sqlite3
+  - out/main/chunks/*.node
+win:
+  executableName: pasted
+nsis:
+  artifactName: ${name}-${version}-setup.${ext}
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+  createDesktopShortcut: always
+mac:
+  entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    - NSDocumentsFolderUsageDescription: Pasted uses folders you choose for local libraries and imports.
+    - NSDownloadsFolderUsageDescription: Pasted uses files you choose for imports and exports.
+  notarize: false
+dmg:
+  artifactName: ${name}-${version}.${ext}
+linux:
+  target:
+    - AppImage
+    - snap
+    - deb
+  maintainer: xtrafr <xtr4@tutamail.com>
+  category: Productivity
+appImage:
+  artifactName: ${name}-${version}.${ext}
+npmRebuild: false

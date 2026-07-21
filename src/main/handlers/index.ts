@@ -1,0 +1,5 @@
+import '@main/handlers/libraryHandlers'
+import '@main/handlers/linkHandlers'
+import '@main/handlers/noteHandlers'
+import '@main/handlers/imageHandlers'
+import '@main/handlers/folderHandlers'

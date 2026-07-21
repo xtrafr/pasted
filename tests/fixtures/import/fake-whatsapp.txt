@@ -1,8 +1,0 @@
-[03/02/24, 09:05:11] Alex Example: This is an ordinary fictional message with no link.
-[3/2/24, 9:06:02] Alex Example: Save Https://Example.COM/article?utm_source=chat&id=42.
-This fictional continuation also has docs.example.org/guide_(draft), for later.
-[04/02/24, 21:17] Sam Sample: <Media omitted>
-[5/2/2024, 8:01:00 PM] Sam Sample: Two links https://one.example/path, and https://two.example/search?q=a&b=c!
-‎[06/02/24, 07:00:00] Alex Example: Hidden formatting inside https://exa​mple.net/invisible
-[07/02/24, 07:01:00] Sam Sample: Unsafe javascript:alert(1)
-

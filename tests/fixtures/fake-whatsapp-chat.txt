@@ -1,0 +1,5 @@
+[26/12/22, 16:59:31] Alex: This is a completely fictional chat export.
+[26/12/22, 17:02:10] Alex: Save https://docs.example.com/reference/url
+[27/12/22, 09:12:00] Jordan: Two useful links: https://guide.example.net/start and example.org/reference.
+[27/12/22, 09:13:04] Jordan: <Media omitted>
+[28/12/22, 18:30:22] Alex: This private-looking message is fake and should never be imported.
